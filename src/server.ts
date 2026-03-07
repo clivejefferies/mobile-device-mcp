@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { Server } from "@modelcontextprotocol/sdk/server/index.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import {
@@ -5,8 +6,15 @@ import {
   CallToolRequestSchema
 } from "@modelcontextprotocol/sdk/types.js"
 
-import { startAndroidApp, getAndroidLogs } from "./android.js"
-import { startIOSApp, getIOSLogs } from "./ios.js"
+import {
+  StartAppResponse,
+  GetLogsResponse,
+  CaptureAndroidScreenResponse,
+  CaptureIOSScreenshotResponse
+} from "./types.js"
+
+import { startAndroidApp, getAndroidLogs, captureAndroidScreen } from "./android.js"
+import { startIOSApp, getIOSLogs, captureIOSScreenshot } from "./ios.js"
 
 const server = new Server(
   {
@@ -19,6 +27,15 @@ const server = new Server(
     }
   }
 )
+
+function wrapResponse<T>(data: T) {
+  return {
+    content: [{
+      type: "application/json",
+      data
+    }]
+  }
+}
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
@@ -61,6 +78,34 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
         required: ["platform", "id"]
       }
+    },
+    {
+      name: "capture_android_screen",
+      description: "Capture a screenshot from an Android device",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "Android device id or package name"
+          }
+        },
+        required: ["id"]
+      }
+    },
+    {
+      name: "capture_ios_screenshot",
+      description: "Capture a screenshot from an iOS simulator",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "iOS bundle id or simulator id"
+          }
+        },
+        required: ["id"]
+      }
     }
   ]
 }))
@@ -75,14 +120,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         id: string
       }
 
-      const result =
-        platform === "android"
-          ? await startAndroidApp(id)
-          : await startIOSApp(id)
+      let result, deviceInfo
 
-      return {
-        content: [{ type: "text", text: result }]
+      if (platform === "android") {
+        result = await startAndroidApp(id)
+        deviceInfo = { platform: "android", id }
+      } else {
+        result = await startIOSApp(id)
+        deviceInfo = { platform: "ios", id }
       }
+
+      const response: StartAppResponse = {
+        device: deviceInfo,
+        output: result
+      }
+
+      return wrapResponse(response)
     }
 
     if (name === "get_logs") {
@@ -92,14 +145,50 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         lines?: number
       }
 
-      const logs =
-        platform === "android"
-          ? await getAndroidLogs(id, lines ?? 200)
-          : await getIOSLogs()
+      let logs, deviceInfo
 
-      return {
-        content: [{ type: "text", text: logs }]
+      if (platform === "android") {
+        logs = await getAndroidLogs(id, lines ?? 200)
+        deviceInfo = { platform: "android", id }
+      } else {
+        logs = await getIOSLogs()
+        deviceInfo = { platform: "ios", id }
       }
+
+      const response: GetLogsResponse = {
+        device: deviceInfo,
+        logs
+      }
+
+      return wrapResponse(response)
+    }
+
+    if (name === "capture_android_screen") {
+      const { id } = args as { id: string }
+
+      const screenshot = await captureAndroidScreen(id)
+      const deviceInfo = { platform: "android", id }
+
+      const response: CaptureAndroidScreenResponse = {
+        device: deviceInfo,
+        screenshot
+      }
+
+      return wrapResponse(response)
+    }
+
+    if (name === "capture_ios_screenshot") {
+      const { id } = args as { id: string }
+
+      const screenshot = await captureIOSScreenshot(id)
+      const deviceInfo = { platform: "ios", id }
+
+      const response: CaptureIOSScreenshotResponse = {
+        device: deviceInfo,
+        screenshot
+      }
+
+      return wrapResponse(response)
     }
   } catch (error) {
     return {
