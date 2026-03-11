@@ -14,7 +14,9 @@ import {
   ResetAppDataResponse,
   GetUITreeResponse,
   GetCurrentScreenResponse,
-  WaitForElementResponse
+  WaitForElementResponse,
+  TapResponse,
+  SwipeResponse
 } from "./types.js"
 
 import { AndroidObserve } from "./android/observe.js"
@@ -267,6 +269,30 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           }
         },
         required: ["x", "y"]
+      }
+    },
+    {
+      name: "swipe",
+      description: "Simulate a swipe gesture on an Android device.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          platform: {
+            type: "string",
+            enum: ["android"],
+            description: "Platform to swipe on (currently only android supported)"
+          },
+          x1: { type: "number", description: "Start X coordinate" },
+          y1: { type: "number", description: "Start Y coordinate" },
+          x2: { type: "number", description: "End X coordinate" },
+          y2: { type: "number", description: "End Y coordinate" },
+          duration: { type: "number", description: "Duration in ms" },
+          deviceId: {
+            type: "string",
+            description: "Device Serial/UDID. Defaults to connected/booted device."
+          }
+        },
+        required: ["x1", "y1", "x2", "y2", "duration"]
       }
     }
   ]
@@ -540,6 +566,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         result = await androidInteract.tap(x, y, deviceId)
       } else {
         result = await iosInteract.tap(x, y, deviceId)
+      }
+      return wrapResponse(result)
+    }
+
+    if (name === "swipe") {
+      const { platform, x1, y1, x2, y2, duration, deviceId } = (args || {}) as {
+        platform?: "android"
+        x1: number
+        y1: number
+        x2: number
+        y2: number
+        duration: number
+        deviceId?: string
+      }
+
+      const effectivePlatform = platform || "android";
+      
+      if (typeof x1 !== 'number' || typeof y1 !== 'number' || typeof x2 !== 'number' || typeof y2 !== 'number' || typeof duration !== 'number') {
+        throw new Error("x1, y1, x2, y2, and duration are required and must be numbers");
+      }
+
+      let result: SwipeResponse;
+      if (effectivePlatform === "android") {
+        result = await androidInteract.swipe(x1, y1, x2, y2, duration, deviceId)
+      } else {
+        throw new Error(`Platform ${effectivePlatform} not supported for swipe`)
       }
       return wrapResponse(result)
     }

@@ -1,4 +1,4 @@
-import { StartAppResponse, TerminateAppResponse, RestartAppResponse, ResetAppDataResponse, WaitForElementResponse, TapResponse } from "../types.js"
+import { StartAppResponse, TerminateAppResponse, RestartAppResponse, ResetAppDataResponse, WaitForElementResponse, TapResponse, SwipeResponse } from "../types.js"
 import { execAdb, getAndroidDeviceMetadata, getDeviceInfo } from "./utils.js"
 import { AndroidObserve } from "./observe.js"
 
@@ -45,6 +45,18 @@ export class AndroidInteract {
       return { device: deviceInfo, success: true, x, y }
     } catch (e) {
       return { device: deviceInfo, success: false, x, y, error: e instanceof Error ? e.message : String(e) }
+    }
+  }
+
+  async swipe(x1: number, y1: number, x2: number, y2: number, duration: number, deviceId?: string): Promise<SwipeResponse> {
+    const metadata = await getAndroidDeviceMetadata("", deviceId)
+    const deviceInfo = getDeviceInfo(deviceId || 'default', metadata)
+
+    try {
+      await execAdb(['shell', 'input', 'swipe', x1.toString(), y1.toString(), x2.toString(), y2.toString(), duration.toString()], deviceId)
+      return { device: deviceInfo, success: true, start: [x1, y1], end: [x2, y2], duration }
+    } catch (e) {
+      return { device: deviceInfo, success: false, start: [x1, y1], end: [x2, y2], duration, error: e instanceof Error ? e.message : String(e) }
     }
   }
 

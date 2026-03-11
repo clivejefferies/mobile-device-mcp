@@ -339,6 +339,35 @@ Simulate a finger tap on the device screen at specific coordinates.
 
 If the tap fails (e.g., ADB error), `success` will be `false` and an `error` field will be present.
 
+### swipe
+Simulate a swipe gesture on an Android device.
+
+**Input:**
+```jsonc
+{
+  "platform": "android", // Optional, defaults to "android"
+  "x1": 500, // Start X (Required)
+  "y1": 1500, // Start Y (Required)
+  "x2": 500, // End X (Required)
+  "y2": 500, // End Y (Required)
+  "duration": 300, // Duration in ms (Required)
+  "deviceId": "emulator-5554" // Optional
+}
+```
+
+**Response:**
+```json
+{
+  "device": { /* device info */ },
+  "success": true,
+  "start": [500, 1500],
+  "end": [500, 500],
+  "duration": 300
+}
+```
+
+If the swipe fails, `success` will be `false` and an `error` field will be present.
+
 ---
 
 ## Recommended Workflow

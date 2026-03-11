@@ -105,3 +105,12 @@ export interface TapResponse {
   y: number;
   error?: string;
 }
+
+export interface SwipeResponse {
+  device: DeviceInfo;
+  success: boolean;
+  start: [number, number];
+  end: [number, number];
+  duration: number;
+  error?: string;
+}
