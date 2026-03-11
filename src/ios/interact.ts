@@ -1,8 +1,40 @@
 import { promises as fs } from "fs"
-import { StartAppResponse, TerminateAppResponse, RestartAppResponse, ResetAppDataResponse } from "../types.js"
+import { StartAppResponse, TerminateAppResponse, RestartAppResponse, ResetAppDataResponse, WaitForElementResponse } from "../types.js"
 import { execCommand, getIOSDeviceMetadata, validateBundleId } from "./utils.js"
+import { iOSObserve } from "./observe.js"
 
 export class iOSInteract {
+  private observe = new iOSObserve();
+
+  async waitForElement(text: string, timeout: number, deviceId: string = "booted"): Promise<WaitForElementResponse> {
+    const device = await getIOSDeviceMetadata(deviceId);
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < timeout) {
+      try {
+        const tree = await this.observe.getUITree(deviceId);
+        
+        if (tree.error) {
+          return { device, found: false, error: tree.error };
+        }
+
+        const element = tree.elements.find(e => e.text === text);
+        if (element) {
+          return { device, found: true, element };
+        }
+      } catch (e) {
+        // Ignore errors during polling and retry
+        console.error("Error polling UI tree:", e);
+      }
+
+      const elapsed = Date.now() - startTime;
+      const remaining = timeout - elapsed;
+      if (remaining <= 0) break;
+      
+      await new Promise(resolve => setTimeout(resolve, Math.min(500, remaining)));
+    }
+    return { device, found: false };
+  }
   async startApp(bundleId: string, deviceId: string = "booted"): Promise<StartAppResponse> {
     validateBundleId(bundleId)
     const result = await execCommand(['simctl', 'launch', deviceId, bundleId], deviceId)

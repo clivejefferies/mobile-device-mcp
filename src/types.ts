@@ -90,3 +90,10 @@ export interface GetCurrentScreenResponse {
   shortActivity: string;
   error?: string;
 }
+
+export interface WaitForElementResponse {
+  device: DeviceInfo;
+  found: boolean;
+  element?: UIElement;
+  error?: string;
+}
