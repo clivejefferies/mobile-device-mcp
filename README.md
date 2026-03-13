@@ -98,6 +98,21 @@ Example WebUI MCP config using `npx --yes` and environment variables:
 
 All tools accept a JSON input payload and return a structured JSON response. **Every response includes a `device` object** (with information about the selected device/simulator used for the operation), plus the tool-specific output.
 
+### list_devices
+Enumerate connected Android devices and iOS simulators.
+
+Input (optional):
+```jsonc
+{ "platform": "android" | "ios" }
+```
+
+Response:
+```json
+{ "devices": [ { "id": "emulator-5554", "platform": "android", "osVersion": "11", "model": "sdk_gphone64_arm64", "simulator": true, "appInstalled": false } ] }
+```
+
+Use `list_devices` when multiple devices are attached to inspect metadata and pick a device explicitly by passing `deviceId` to subsequent tool calls.
+
 ### start_app
 Launch a mobile app.
 
@@ -225,6 +240,74 @@ Clear app storage (reset to fresh install state).
   "dataCleared": true
 }
 ```
+
+### install_app
+Install an app onto a connected device or simulator (APK for Android, .app/.ipa for iOS).
+
+**Input:**
+```jsonc
+{
+  "platform": "android" | "ios",
+  "appPath": "/path/to/app.apk_or_app.app_or_ipa", // Host path to the app file (Required)
+  "deviceId": "emulator-5554" // Optional: target specific device/simulator
+}
+```
+
+**Response:**
+```json
+{
+  "device": { /* device info */ },
+  "installed": true,
+  "output": "Platform-specific installer output (adb/simctl/idb)",
+  "error": "Optional error message if installation failed"
+}
+```
+
+Notes:
+- Android: uses `adb install -r <apkPath>`. The APK must be accessible from the host running the MCP server.
+- iOS: attempts `xcrun simctl install` for simulators and falls back to `idb install` if available for physical devices. Ensure `XCRUN_PATH` and `IDB` are configured if using non-standard locations.
+- Installation output and errors are surfaced in the response for debugging.
+
+### start_log_stream / read_log_stream / stop_log_stream
+Start a live log stream for an Android app and poll the accumulated entries.
+
+start_log_stream starts a background adb logcat process filtered by the app PID. It returns immediately with success and creates a per-session NDJSON file of parsed log entries.
+
+read_log_stream retrieves recent parsed entries and includes crash detection metadata.
+
+Input (start_log_stream):
+```jsonc
+{
+  "packageName": "com.example.app", // Required
+  "level": "error" | "warn" | "info" | "debug", // Optional, defaults to "error"
+  "sessionId": "optional-session-id" // Optional - used to track stream per debugging session
+}
+```
+
+Input (read_log_stream):
+```jsonc
+{
+  "sessionId": "optional-session-id",
+  "limit": 100, // Optional, max number of entries to return (default 100)
+  "since": "2026-03-13T14:00:00Z" // Optional, ISO timestamp or epoch ms to return only newer entries
+}
+```
+
+Response (read_log_stream):
+```json
+{
+  "entries": [
+    { "timestamp": "2026-03-13T14:01:04.123Z", "level": "E", "tag": "AndroidRuntime", "message": "FATAL EXCEPTION: main", "crash": true, "exception": "NullPointerException" }
+  ],
+  "crash_summary": { "crash_detected": true, "exception": "NullPointerException", "sample": "FATAL EXCEPTION: main" }
+}
+```
+
+Notes:
+- The read_log_stream `since` parameter accepts ISO timestamps or epoch milliseconds. Use it to poll incrementally (pass last seen timestamp).
+- Crash detection is heuristic-based (looks for 'FATAL EXCEPTION' and Exception names). It helps agents decide to capture traces or stop tests quickly.
+- stop_log_stream stops the background adb process for the session.
+
 
 ### get_ui_tree
 Get the current UI hierarchy from the device. Returns a structured JSON representation of the screen content.

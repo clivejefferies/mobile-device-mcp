@@ -18,13 +18,17 @@ import {
   TapResponse,
   SwipeResponse,
   TypeTextResponse,
-  PressBackResponse
+  PressBackResponse,
+  InstallAppResponse
 } from "./types.js"
 
 import { AndroidObserve } from "./android/observe.js"
 import { AndroidInteract } from "./android/interact.js"
 import { iOSObserve } from "./ios/observe.js"
 import { iOSInteract } from "./ios/interact.js"
+import { resolveTargetDevice, listDevices } from "./resolve-device.js"
+import { startAndroidLogStream, readLogStreamLines, stopAndroidLogStream } from "./android/utils.js"
+import { startIOSLogStream, readIOSLogStreamLines, stopIOSLogStream } from "./ios/utils.js"
 
 const androidObserve = new AndroidObserve()
 const androidInteract = new AndroidInteract()
@@ -143,6 +147,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       }
     },
     {
+      name: "install_app",
+      description: "Install an app on Android (apk) or iOS simulator/device (ipa/.app).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          platform: { type: "string", enum: ["android", "ios"] },
+          appPath: { type: "string", description: "Path to APK (Android) or .app/.ipa (iOS) on the host machine" },
+          deviceId: { type: "string", description: "Device UDID (iOS) or Serial (Android). Defaults to booted/connected." }
+        },
+        required: ["platform", "appPath"]
+      }
+    },
+    {
       name: "get_logs",
       description: "Get recent logs from Android or iOS simulator. Returns device metadata and the log output.",
       inputSchema: {
@@ -169,6 +186,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       }
     },
     {
+      name: "list_devices",
+      description: "List connected devices and their metadata (android + ios).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          platform: { type: "string", enum: ["android", "ios"] }
+        }
+      }
+    },
+    {
       name: "capture_screenshot",
       description: "Capture a screenshot from an Android device or iOS simulator. Returns device metadata and the screenshot image.",
       inputSchema: {
@@ -186,6 +213,42 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["platform"]
       }
     },
+    {
+      name: "start_log_stream",
+      description: "Start streaming logs for a target application on Android or iOS. For Android this uses adb logcat --pid=<pid>; for iOS it streams `xcrun simctl spawn <device> log stream` with a predicate.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          platform: { type: "string", enum: ["android", "ios"], default: "android" },
+          packageName: { type: "string", description: "Android package name or iOS bundle id" },
+          level: { type: "string", enum: ["error", "warn", "info", "debug"], default: "error" },
+          deviceId: { type: "string", description: "Device Serial (Android) or UDID (iOS). Defaults to connected/booted device." },
+          sessionId: { type: "string", description: "Session identifier for the log stream" }
+        },
+        required: ["packageName"]
+      }
+    },
+    {
+      name: "read_log_stream",
+      description: "Read accumulated log stream entries for the active session.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sessionId: { type: "string" }
+        }
+      }
+    },
+    {
+      name: "stop_log_stream",
+      description: "Stop an active log stream for the session.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sessionId: { type: "string" }
+        }
+      }
+    },
+
     {
       name: "get_ui_tree",
       description: "Get the current UI hierarchy from an Android device or iOS simulator. Returns a structured JSON representation of the screen content.",
@@ -357,12 +420,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       let deviceInfo: DeviceInfo
 
       if (platform === "android") {
-        const result = await androidInteract.startApp(appId, deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'android', appId, deviceId })
+        const result = await androidInteract.startApp(appId, resolved.id)
         appStarted = result.appStarted
         launchTimeMs = result.launchTimeMs
         deviceInfo = result.device
       } else {
-        const result = await iosInteract.startApp(appId, deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'ios', appId, deviceId })
+        const result = await iosInteract.startApp(appId, resolved.id)
         appStarted = result.appStarted
         launchTimeMs = result.launchTimeMs
         deviceInfo = result.device
@@ -388,11 +453,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       let deviceInfo: DeviceInfo
 
       if (platform === "android") {
-        const result = await androidInteract.terminateApp(appId, deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'android', appId, deviceId })
+        const result = await androidInteract.terminateApp(appId, resolved.id)
         appTerminated = result.appTerminated
         deviceInfo = result.device
       } else {
-        const result = await iosInteract.terminateApp(appId, deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'ios', appId, deviceId })
+        const result = await iosInteract.terminateApp(appId, resolved.id)
         appTerminated = result.appTerminated
         deviceInfo = result.device
       }
@@ -417,12 +484,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       let deviceInfo: DeviceInfo
 
       if (platform === "android") {
-        const result = await androidInteract.restartApp(appId, deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'android', appId, deviceId })
+        const result = await androidInteract.restartApp(appId, resolved.id)
         appRestarted = result.appRestarted
         launchTimeMs = result.launchTimeMs
         deviceInfo = result.device
       } else {
-        const result = await iosInteract.restartApp(appId, deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'ios', appId, deviceId })
+        const result = await iosInteract.restartApp(appId, resolved.id)
         appRestarted = result.appRestarted
         launchTimeMs = result.launchTimeMs
         deviceInfo = result.device
@@ -448,11 +517,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       let deviceInfo: DeviceInfo
 
       if (platform === "android") {
-        const result = await androidInteract.resetAppData(appId, deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'android', appId, deviceId })
+        const result = await androidInteract.resetAppData(appId, resolved.id)
         dataCleared = result.dataCleared
         deviceInfo = result.device
       } else {
-        const result = await iosInteract.resetAppData(appId, deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'ios', appId, deviceId })
+        const result = await iosInteract.resetAppData(appId, resolved.id)
         dataCleared = result.dataCleared
         deviceInfo = result.device
       }
@@ -460,6 +531,44 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const response: ResetAppDataResponse = {
         device: deviceInfo,
         dataCleared
+      }
+
+      return wrapResponse(response)
+    }
+
+    if (name === "install_app") {
+      const { platform, appPath, deviceId } = args as {
+        platform: "android" | "ios"
+        appPath: string
+        deviceId?: string
+      }
+
+      let installed: boolean
+      let output: string | undefined
+      let deviceInfo: DeviceInfo
+      let errorMsg: string | undefined
+
+      if (platform === "android") {
+        const resolved = await resolveTargetDevice({ platform: 'android', deviceId })
+        const result = await androidInteract.installApp(appPath, resolved.id)
+        installed = result.installed
+        output = (result as any).output
+        deviceInfo = result.device
+        errorMsg = (result as any).error
+      } else {
+        const resolved = await resolveTargetDevice({ platform: 'ios', deviceId })
+        const result = await iosInteract.installApp(appPath, resolved.id)
+        installed = result.installed
+        output = (result as any).output
+        deviceInfo = result.device
+        errorMsg = (result as any).error
+      }
+
+      const response: InstallAppResponse = {
+        device: deviceInfo,
+        installed,
+        output,
+        error: errorMsg
       }
 
       return wrapResponse(response)
@@ -477,12 +586,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       let deviceInfo: DeviceInfo
 
       if (platform === "android") {
-        deviceInfo = await androidObserve.getDeviceMetadata(appId || "", deviceId)
-        const response = await androidObserve.getLogs(appId, lines ?? 200, deviceId)
+        // Resolve an explicit target device when multiple are attached
+        const resolved = await resolveTargetDevice({ platform: 'android', appId, deviceId })
+        deviceInfo = resolved
+        const response = await androidObserve.getLogs(appId, lines ?? 200, resolved.id)
         logs = Array.isArray(response.logs) ? response.logs : []
       } else {
-        deviceInfo = await iosObserve.getDeviceMetadata(deviceId)
-        const response = await iosObserve.getLogs(appId, deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'ios', appId, deviceId })
+        deviceInfo = resolved
+        const response = await iosObserve.getLogs(appId, resolved.id)
         logs = Array.isArray(response.logs) ? response.logs : []
       }
 
@@ -510,6 +622,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
     }
 
+    if (name === "list_devices") {
+      const { platform, appId } = (args || {}) as { platform?: "android" | "ios"; appId?: string }
+      const devices = await listDevices(platform, appId)
+      return wrapResponse({ devices })
+    }
+
+
     if (name === "capture_screenshot") {
       const { platform, deviceId } = args as { platform: "android" | "ios"; deviceId?: string }
 
@@ -518,13 +637,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       let deviceInfo: DeviceInfo
 
       if (platform === "android") {
-        deviceInfo = await androidObserve.getDeviceMetadata("", deviceId)
-        const result = await androidObserve.captureScreen(deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'android', deviceId })
+        deviceInfo = resolved
+        const result = await androidObserve.captureScreen(resolved.id)
         screenshot = result.screenshot
         resolution = result.resolution
       } else {
-        deviceInfo = await iosObserve.getDeviceMetadata(deviceId)
-        const result = await iosObserve.captureScreenshot(deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'ios', deviceId })
+        deviceInfo = resolved
+        const result = await iosObserve.captureScreenshot(resolved.id)
         screenshot = result.screenshot
         resolution = result.resolution
       }
@@ -554,9 +675,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       let result: GetUITreeResponse
       if (platform === "android") {
-        result = await androidObserve.getUITree(deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'android', deviceId })
+        result = await androidObserve.getUITree(resolved.id)
       } else if (platform === "ios") {
-        result = await iosObserve.getUITree(deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'ios', deviceId })
+        result = await iosObserve.getUITree(resolved.id)
       } else {
         throw new Error(`Platform ${platform} not supported for get_ui_tree`)
       }
@@ -566,7 +689,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (name === "get_current_screen") {
       const { deviceId } = (args || {}) as { deviceId?: string }
-      const result = await androidObserve.getCurrentScreen(deviceId)
+      const resolved = await resolveTargetDevice({ platform: 'android', deviceId })
+      const result = await androidObserve.getCurrentScreen(resolved.id)
       return wrapResponse(result)
     }
 
@@ -582,9 +706,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       let result: WaitForElementResponse;
       if (platform === "android") {
-        result = await androidInteract.waitForElement(text, effectiveTimeout, deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'android', deviceId })
+        result = await androidInteract.waitForElement(text, effectiveTimeout, resolved.id)
       } else {
-        result = await iosInteract.waitForElement(text, effectiveTimeout, deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'ios', deviceId })
+        result = await iosInteract.waitForElement(text, effectiveTimeout, resolved.id)
       }
       return wrapResponse(result)
     }
@@ -606,9 +732,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       let result: TapResponse;
       if (effectivePlatform === "android") {
-        result = await androidInteract.tap(x, y, deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'android', deviceId })
+        result = await androidInteract.tap(x, y, resolved.id)
       } else {
-        result = await iosInteract.tap(x, y, deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'ios', deviceId })
+        result = await iosInteract.tap(x, y, resolved.id)
       }
       return wrapResponse(result)
     }
@@ -632,7 +760,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       let result: SwipeResponse;
       if (effectivePlatform === "android") {
-        result = await androidInteract.swipe(x1, y1, x2, y2, duration, deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'android', deviceId })
+        result = await androidInteract.swipe(x1, y1, x2, y2, duration, resolved.id)
       } else {
         throw new Error(`Platform ${effectivePlatform} not supported for swipe`)
       }
@@ -654,7 +783,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       let result: TypeTextResponse;
       if (effectivePlatform === "android") {
-        result = await androidInteract.typeText(text, deviceId)
+        const resolved = await resolveTargetDevice({ platform: 'android', deviceId })
+        result = await androidInteract.typeText(text, resolved.id)
       } else {
         throw new Error(`Platform ${effectivePlatform} not supported for type_text`)
       }
@@ -673,8 +803,50 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         throw new Error(`Platform ${effectivePlatform} not supported for press_back`)
       }
 
-      const result = await androidInteract.pressBack(deviceId)
+      const resolved = await resolveTargetDevice({ platform: 'android', deviceId })
+      const result = await androidInteract.pressBack(resolved.id)
       return wrapResponse(result)
+    }
+
+    if (name === 'start_log_stream') {
+      const { platform, packageName, level, sessionId: argSession, deviceId } = args as { platform?: 'android' | 'ios'; packageName: string; level?: 'error' | 'warn' | 'info' | 'debug'; sessionId?: string; deviceId?: string }
+      const sessionId = argSession || 'default'
+      const effectivePlatform = platform || 'android'
+      if (effectivePlatform === 'android') {
+        const resolved = await resolveTargetDevice({ platform: 'android', appId: packageName, deviceId })
+        const res = await startAndroidLogStream(packageName, level || 'error', resolved.id, sessionId)
+        return wrapResponse(res)
+      } else {
+        const resolved = await resolveTargetDevice({ platform: 'ios', appId: packageName, deviceId })
+        const res = await startIOSLogStream(packageName, level || 'error', resolved.id, sessionId)
+        return wrapResponse(res)
+      }
+    }
+
+    if (name === 'read_log_stream') {
+      const { platform, sessionId: argSession, limit, since } = (args || {}) as { platform?: 'android' | 'ios'; sessionId?: string, limit?: number, since?: string }
+      const sid = argSession || 'default'
+      const effectivePlatform = platform || 'android'
+      if (effectivePlatform === 'android') {
+        const { entries, crash_summary } = await readLogStreamLines(sid, limit ?? 100, since)
+        return wrapResponse({ entries, crash_summary })
+      } else {
+        const { entries, crash_summary } = await readIOSLogStreamLines(sid, limit ?? 100, since)
+        return wrapResponse({ entries, crash_summary })
+      }
+    }
+
+    if (name === 'stop_log_stream') {
+      const { platform, sessionId: argSession } = (args || {}) as { platform?: 'android' | 'ios'; sessionId?: string }
+      const sid = argSession || 'default'
+      const effectivePlatform = platform || 'android'
+      if (effectivePlatform === 'android') {
+        const res = await stopAndroidLogStream(sid)
+        return wrapResponse(res)
+      } else {
+        const res = await stopIOSLogStream(sid)
+        return wrapResponse(res)
+      }
     }
   } catch (error) {
     return {

@@ -131,3 +131,160 @@ export async function getIOSDeviceMetadata(deviceId: string = "booted"): Promise
     })
   })
 }
+
+export async function listIOSDevices(appId?: string): Promise<DeviceInfo[]> {
+  return new Promise((resolve) => {
+    execFile(XCRUN, ['simctl', 'list', 'devices', '--json'], (err, stdout) => {
+      if (err || !stdout) return resolve([])
+      try {
+        const data = JSON.parse(stdout)
+        const devicesMap = data.devices || {}
+        const out: DeviceInfo[] = []
+        const checks: Promise<void>[] = []
+
+        for (const runtime in devicesMap) {
+          const devices = devicesMap[runtime]
+          if (Array.isArray(devices)) {
+            for (const device of devices) {
+              const info: any = {
+                platform: 'ios',
+                id: device.udid,
+                osVersion: parseRuntimeName(runtime),
+                model: device.name,
+                simulator: true
+              }
+
+              if (appId) {
+                // check if installed
+                const p = execCommand(['simctl', 'get_app_container', device.udid, appId, 'data'], device.udid)
+                  .then(() => { info.appInstalled = true })
+                  .catch(() => { info.appInstalled = false })
+                  .then(() => { out.push(info) })
+                checks.push(p)
+              } else {
+                out.push(info)
+              }
+            }
+          }
+        }
+
+        Promise.all(checks).then(() => resolve(out)).catch(() => resolve(out))
+      } catch (e) {
+        resolve([])
+      }
+    })
+  })
+}
+
+// --- iOS live log stream support ---
+import { createWriteStream, promises as fsPromises } from 'fs'
+import path from 'path'
+import { parseLogLine } from '../android/utils.js'
+
+const iosActiveLogStreams: Map<string, { proc: ReturnType<typeof import('child_process').spawn>, file: string }> = new Map()
+
+// Test helpers
+export function _setIOSActiveLogStream(sessionId: string, file: string) {
+  iosActiveLogStreams.set(sessionId, { proc: {} as any, file })
+}
+
+export function _clearIOSActiveLogStream(sessionId: string) {
+  iosActiveLogStreams.delete(sessionId)
+}
+
+export async function startIOSLogStream(bundleId: string, level: 'error' | 'warn' | 'info' | 'debug' = 'error', deviceId: string = 'booted', sessionId: string = 'default') : Promise<{ success: boolean; stream_started?: boolean; error?: string }> {
+  try {
+    // Build predicate to filter by process or subsystem
+    const predicate = `process == "${bundleId}" or subsystem contains "${bundleId}"`
+
+    // Prevent multiple streams per session
+    if (iosActiveLogStreams.has(sessionId)) {
+      try { iosActiveLogStreams.get(sessionId)!.proc.kill() } catch (e) {}
+      iosActiveLogStreams.delete(sessionId)
+    }
+
+    // Start simctl log stream: xcrun simctl spawn <device> log stream --style syslog --predicate '<predicate>'
+    const args = ['simctl', 'spawn', deviceId, 'log', 'stream', '--style', 'syslog', '--predicate', predicate]
+    const proc = spawn(XCRUN, args)
+
+    // Prepare output file
+    const tmpDir = process.env.TMPDIR || '/tmp'
+    const file = path.join(tmpDir, `mobile-debug-ios-log-${sessionId}.ndjson`)
+    const stream = createWriteStream(file, { flags: 'a' })
+
+    proc.stdout.on('data', (chunk) => {
+      const text = chunk.toString()
+      const lines = text.split(/\r?\n/).filter(Boolean)
+      for (const l of lines) {
+        // Try to parse with shared parser; parser may be optimized for Android but extracts exceptions and message
+        const entry = parseLogLine(l)
+        stream.write(JSON.stringify(entry) + '\n')
+      }
+    })
+
+    proc.stderr.on('data', (chunk) => {
+      const text = chunk.toString()
+      const lines = text.split(/\r?\n/).filter(Boolean)
+      for (const l of lines) {
+        const entry = { timestamp: '', level: 'E', tag: 'xcrun', message: l }
+        stream.write(JSON.stringify(entry) + '\n')
+      }
+    })
+
+    proc.on('close', (code) => {
+      stream.end()
+      iosActiveLogStreams.delete(sessionId)
+    })
+
+    iosActiveLogStreams.set(sessionId, { proc, file })
+    return { success: true, stream_started: true }
+  } catch (err) {
+    return { success: false, error: 'log_stream_start_failed' }
+  }
+}
+
+export async function stopIOSLogStream(sessionId: string = 'default'): Promise<{ success: boolean }> {
+  const entry = iosActiveLogStreams.get(sessionId)
+  if (!entry) return { success: true }
+  try { entry.proc.kill() } catch (e) {}
+  iosActiveLogStreams.delete(sessionId)
+  return { success: true }
+}
+
+export async function readIOSLogStreamLines(sessionId: string = 'default', limit: number = 100, since?: string): Promise<{ entries: any[], crash_summary?: { crash_detected: boolean, exception?: string, sample?: string } }> {
+  const entry = iosActiveLogStreams.get(sessionId)
+  if (!entry) return { entries: [] }
+  try {
+    const data = await fsPromises.readFile(entry.file, 'utf8').catch(() => '')
+    if (!data) return { entries: [], crash_summary: { crash_detected: false } }
+    const lines = data.split(/\r?\n/).filter(Boolean)
+    const parsed = lines.map(l => {
+      try {
+        return JSON.parse(l)
+      } catch {
+        return { message: l, _iso: null, crash: false }
+      }
+    })
+
+    // Minimal since filtering if provided
+    let filtered = parsed
+    if (since) {
+      let sinceMs: number | null = null
+      if (/^\d+$/.test(since)) sinceMs = Number(since)
+      else {
+        const sDate = new Date(since)
+        if (!isNaN(sDate.getTime())) sinceMs = sDate.getTime()
+      }
+      if (sinceMs !== null) {
+        filtered = parsed.filter(p => p._iso && (new Date(p._iso).getTime() >= sinceMs))
+      }
+    }
+
+    const entries = filtered.slice(-Math.max(0, limit))
+    const crashEntry = entries.find(e => e.crash)
+    const crash_summary = crashEntry ? { crash_detected: true, exception: crashEntry.exception, sample: crashEntry.message } : { crash_detected: false }
+    return { entries, crash_summary }
+  } catch (e) {
+    return { entries: [], crash_summary: { crash_detected: false } }
+  }
+}
