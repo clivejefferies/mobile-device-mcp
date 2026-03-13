@@ -81,6 +81,42 @@ export class iOSInteract {
     }
   }
 
+  async installApp(appPath: string, deviceId: string = "booted"): Promise<import("../types.js").InstallAppResponse> {
+    // Try simulator install first
+    const device = await getIOSDeviceMetadata(deviceId)
+    try {
+      const res = await execCommand(['simctl', 'install', deviceId, appPath], deviceId)
+      return { device, installed: true, output: res.output }
+    } catch (e) {
+      // If simctl fails and idb is available, try idb install for physical devices
+      try {
+        const child = spawn(IDB, ['--version'])
+        const idbExists = await new Promise<boolean>((resolve) => {
+          child.on('error', () => resolve(false));
+          child.on('close', (code) => resolve(code === 0));
+        });
+        if (idbExists) {
+          // Use idb to install (works for physical devices and simulators)
+          await new Promise<void>((resolve, reject) => {
+            const proc = spawn(IDB, ['install', appPath, '--udid', device.id]);
+            let stderr = '';
+            proc.stderr.on('data', d => stderr += d.toString());
+            proc.on('close', code => {
+              if (code === 0) resolve();
+              else reject(new Error(stderr || `idb install failed with code ${code}`));
+            });
+            proc.on('error', err => reject(err));
+          });
+          return { device, installed: true }
+        }
+      } catch (inner) {
+        // fallthrough
+      }
+
+      return { device, installed: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  }
+
   async startApp(bundleId: string, deviceId: string = "booted"): Promise<StartAppResponse> {
     validateBundleId(bundleId)
     const result = await execCommand(['simctl', 'launch', deviceId, bundleId], deviceId)

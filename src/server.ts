@@ -18,7 +18,8 @@ import {
   TapResponse,
   SwipeResponse,
   TypeTextResponse,
-  PressBackResponse
+  PressBackResponse,
+  InstallAppResponse
 } from "./types.js"
 
 import { AndroidObserve } from "./android/observe.js"
@@ -141,6 +142,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           }
         },
         required: ["platform", "appId"]
+      }
+    },
+    {
+      name: "install_app",
+      description: "Install an app on Android (apk) or iOS simulator/device (ipa/.app).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          platform: { type: "string", enum: ["android", "ios"] },
+          appPath: { type: "string", description: "Path to APK (Android) or .app/.ipa (iOS) on the host machine" },
+          deviceId: { type: "string", description: "Device UDID (iOS) or Serial (Android). Defaults to booted/connected." }
+        },
+        required: ["platform", "appPath"]
       }
     },
     {
@@ -480,6 +494,44 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const response: ResetAppDataResponse = {
         device: deviceInfo,
         dataCleared
+      }
+
+      return wrapResponse(response)
+    }
+
+    if (name === "install_app") {
+      const { platform, appPath, deviceId } = args as {
+        platform: "android" | "ios"
+        appPath: string
+        deviceId?: string
+      }
+
+      let installed: boolean
+      let output: string | undefined
+      let deviceInfo: DeviceInfo
+      let errorMsg: string | undefined
+
+      if (platform === "android") {
+        const resolved = await resolveTargetDevice({ platform: 'android', deviceId })
+        const result = await androidInteract.installApp(appPath, resolved.id)
+        installed = result.installed
+        output = (result as any).output
+        deviceInfo = result.device
+        errorMsg = (result as any).error
+      } else {
+        const resolved = await resolveTargetDevice({ platform: 'ios', deviceId })
+        const result = await iosInteract.installApp(appPath, resolved.id)
+        installed = result.installed
+        output = (result as any).output
+        deviceInfo = result.device
+        errorMsg = (result as any).error
+      }
+
+      const response: InstallAppResponse = {
+        device: deviceInfo,
+        installed,
+        output,
+        error: errorMsg
       }
 
       return wrapResponse(response)

@@ -127,3 +127,10 @@ export interface PressBackResponse {
   success: boolean;
   error?: string;
 }
+
+export interface InstallAppResponse {
+  device: DeviceInfo;
+  installed: boolean;
+  output?: string;
+  error?: string;
+}

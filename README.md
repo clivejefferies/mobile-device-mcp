@@ -241,6 +241,34 @@ Clear app storage (reset to fresh install state).
 }
 ```
 
+### install_app
+Install an app onto a connected device or simulator (APK for Android, .app/.ipa for iOS).
+
+**Input:**
+```jsonc
+{
+  "platform": "android" | "ios",
+  "appPath": "/path/to/app.apk_or_app.app_or_ipa", // Host path to the app file (Required)
+  "deviceId": "emulator-5554" // Optional: target specific device/simulator
+}
+```
+
+**Response:**
+```json
+{
+  "device": { /* device info */ },
+  "installed": true,
+  "output": "Platform-specific installer output (adb/simctl/idb)",
+  "error": "Optional error message if installation failed"
+}
+```
+
+Notes:
+- Android: uses `adb install -r <apkPath>`. The APK must be accessible from the host running the MCP server.
+- iOS: attempts `xcrun simctl install` for simulators and falls back to `idb install` if available for physical devices. Ensure `XCRUN_PATH` and `IDB` are configured if using non-standard locations.
+- Installation output and errors are surfaced in the response for debugging.
+
+
 ### get_ui_tree
 Get the current UI hierarchy from the device. Returns a structured JSON representation of the screen content.
 

@@ -87,6 +87,18 @@ export class AndroidInteract {
     }
   }
 
+  async installApp(apkPath: string, deviceId?: string): Promise<import("../types.js").InstallAppResponse> {
+    const metadata = await getAndroidDeviceMetadata("", deviceId)
+    const deviceInfo = getDeviceInfo(deviceId || 'default', metadata)
+
+    try {
+      const output = await execAdb(['install', '-r', apkPath], deviceId)
+      return { device: deviceInfo, installed: true, output }
+    } catch (e) {
+      return { device: deviceInfo, installed: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  }
+
   async startApp(appId: string, deviceId?: string): Promise<StartAppResponse> {
     const metadata = await getAndroidDeviceMetadata(appId, deviceId)
     const deviceInfo = getDeviceInfo(deviceId || 'default', metadata)
