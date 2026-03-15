@@ -2,6 +2,16 @@
 
 All notable changes to the **Mobile Debug MCP** project will be documented in this file.
 
+## [0.10.0]
+
+### Added / Changed
+- Tools refactor: consolidated handlers into ToolsInteract and ToolsObserve classes to centralise tool wiring and simplify platform delegation.
+- install_app now builds project directories (Gradle/xcodebuild) and supports streamed installs with robust fallbacks (adb push + pm install).
+- Added log streaming utilities and improved log parsing/crash detection heuristics.
+- CI: added lint and unit tests for handler parity; updated README links to docs and changelog.
+- Docs: Created docs/TOOLS.md with comprehensive tool definitions and examples.
+
+
 ## [0.9.0] 
 
 ### Added / Changed

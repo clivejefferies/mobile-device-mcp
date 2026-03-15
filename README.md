@@ -27,8 +27,8 @@ A minimal, secure MCP server for AI-assisted mobile development. Build, install,
 
 ## Docs
 
-- Tools: docs/TOOLS.md (full input/response examples)
-- Changelog: docs/CHANGELOG.md
+- Tools: [Tools](docs/TOOLS.md) — full input/response examples
+- Changelog: [Changelog](docs/CHANGELOG.md)
 
 ## License
 
