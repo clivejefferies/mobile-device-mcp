@@ -4,7 +4,6 @@ import { StartAppResponse, TerminateAppResponse, RestartAppResponse, ResetAppDat
 import { execCommand, getIOSDeviceMetadata, validateBundleId, IDB } from "./utils.js"
 import { iOSObserve } from "./observe.js"
 import path from "path"
-import { existsSync } from "fs"
 
 export class iOSInteract {
   private observe = new iOSObserve();
@@ -25,7 +24,7 @@ export class iOSInteract {
         if (element) {
           return { device, found: true, element };
         }
-      } catch (e) {
+      } catch {
         // Ignore errors during polling and retry
         console.error("Error polling UI tree:", e);
       }
@@ -78,7 +77,7 @@ export class iOSInteract {
       });
 
       return { device, success: true, x, y };
-    } catch (e) {
+    } catch {
       return { device, success: false, x, y, error: e instanceof Error ? e.message : String(e) };
     }
   }
@@ -150,7 +149,7 @@ export class iOSInteract {
       try {
         const res = await execCommand(['simctl', 'install', deviceId, toInstall], deviceId)
         return { device, installed: true, output: res.output }
-      } catch (e) {
+      } catch {
         // If simctl fails and idb is available, try idb install for physical devices
         try {
           const child = spawn(IDB, ['--version'])
@@ -172,13 +171,13 @@ export class iOSInteract {
             });
             return { device, installed: true }
           }
-        } catch (inner) {
+        } catch {
           // fallthrough
         }
 
         return { device, installed: false, error: e instanceof Error ? e.message : String(e) }
       }
-    } catch (e) {
+    } catch {
       return { device, installed: false, error: e instanceof Error ? e.message : String(e) }
     }
   }
@@ -248,7 +247,7 @@ export class iOSInteract {
         device,
         dataCleared: true
       }
-    } catch (err) {
+    } catch {
       throw new Error(`Failed to clear data for ${bundleId}: ${err instanceof Error ? err.message : String(err)}`)
     }
   }

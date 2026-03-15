@@ -23,7 +23,7 @@ export async function getLogsHandler({ platform, appId, deviceId, lines }: { pla
       const logs = Array.isArray(resp.logs) ? resp.logs : []
       const crashLines = logs.filter(l => l.includes('FATAL EXCEPTION'))
       return { device: deviceInfo, logs, crashLines }
-    } catch (e) {
+    } catch {
       return { device: deviceInfo, logs: [], crashLines: [] }
     }
   }

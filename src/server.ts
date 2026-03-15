@@ -8,29 +8,12 @@ import {
 
 import {
   StartAppResponse,
-  DeviceInfo,
   TerminateAppResponse,
   RestartAppResponse,
   ResetAppDataResponse,
-  GetUITreeResponse,
-  GetCurrentScreenResponse,
-  WaitForElementResponse,
-  TapResponse,
-  SwipeResponse,
-  TypeTextResponse,
-  PressBackResponse,
   InstallAppResponse
 } from "./types.js"
 
-import { AndroidObserve } from "./android/observe.js"
-import { AndroidInteract } from "./android/interact.js"
-import { iOSObserve } from "./ios/observe.js"
-import { iOSInteract } from "./ios/interact.js"
-import { resolveTargetDevice, listDevices } from "./resolve-device.js"
-import { startAndroidLogStream, readLogStreamLines, stopAndroidLogStream } from "./android/utils.js"
-import { startIOSLogStream, readIOSLogStreamLines, stopIOSLogStream } from "./ios/utils.js"
-import { promises as fs } from 'fs'
-import path from 'path'
 import { installAppHandler } from './tools/install.js'
 import { startAppHandler, terminateAppHandler, restartAppHandler, resetAppDataHandler } from './tools/app.js'
 import { getLogsHandler, startLogStreamHandler, readLogStreamHandler, stopLogStreamHandler } from './tools/logs.js'
@@ -38,10 +21,6 @@ import { listDevicesHandler } from './tools/devices.js'
 import { captureScreenshotHandler } from './tools/screenshot.js'
 import { getUITreeHandler, getCurrentScreenHandler, waitForElementHandler, tapHandler, swipeHandler, typeTextHandler, pressBackHandler } from './tools/ui.js'
 
-const androidObserve = new AndroidObserve()
-const androidInteract = new AndroidInteract()
-const iosObserve = new iOSObserve()
-const iosInteract = new iOSInteract()
 
 const server = new Server(
   {

@@ -11,7 +11,7 @@ export async function detectJavaHome(): Promise<string | undefined> {
         const v = execSync(`"${javaBin}" -version`, { stdio: ['ignore', 'pipe', 'pipe'] }).toString()
         if (/\b17\b/.test(v) || /17\./.test(v)) return process.env.JAVA_HOME
         console.debug('[java.detect] Existing JAVA_HOME does not appear to be Java 17, will search for JDK17')
-      } catch (e) {
+      } catch {
         console.debug('[java.detect] Failed to validate existing JAVA_HOME, searching for JDK17')
       }
     }
@@ -64,6 +64,6 @@ export async function detectJavaHome(): Promise<string | undefined> {
     for (const p of linuxCandidates) {
       try { if (existsSync(p)) return p } catch {}
     }
-  } catch (e) {}
+  } catch {}
   return undefined
 }

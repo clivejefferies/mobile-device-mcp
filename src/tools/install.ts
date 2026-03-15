@@ -27,7 +27,7 @@ export async function installAppHandler({ platform, appPath, deviceId }: { platf
       else if (ext === '.ipa' || ext === '.app') chosenPlatform = 'ios'
       else chosenPlatform = 'android'
     }
-  } catch (e) {
+  } catch {
     chosenPlatform = 'android'
   }
 

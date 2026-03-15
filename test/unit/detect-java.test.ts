@@ -1,7 +1,5 @@
 import assert from 'assert'
 import { detectJavaHome } from '../../src/utils/java.js'
-import * as child from 'child_process'
-import * as fs from 'fs'
 
 // These tests are lightweight smoke tests; they don't rely on actual JDK17 installs,
 // but exercise the failure modes and ensure the function returns undefined or a string.

@@ -1,6 +1,6 @@
-import { spawn, execSync } from 'child_process'
+import { spawn } from 'child_process'
 import { DeviceInfo } from "../types.js"
-import { existsSync, createWriteStream, promises as fsPromises } from 'fs'
+import { createWriteStream, promises as fsPromises } from 'fs'
 import path from 'path'
 
 export const ADB = process.env.ADB_PATH || 'adb'
@@ -14,7 +14,26 @@ function getAdbArgs(args: string[], deviceId?: string): string[] {
   return args
 }
 
-export function execAdb(args: string[], deviceId?: string, options: any = {}): Promise<string> {
+/**
+ * Determine an effective ADB timeout (ms) prioritizing:
+ * 1. provided customTimeout
+ * 2. MCP_ADB_TIMEOUT or ADB_TIMEOUT env vars
+ * 3. sensible per-command defaults
+ */
+function getAdbTimeout(args: string[], customTimeout?: number): number {
+  if (typeof customTimeout === 'number' && !isNaN(customTimeout)) return customTimeout
+  const envTimeout = parseInt(process.env.MCP_ADB_TIMEOUT || process.env.ADB_TIMEOUT || '', 10)
+  if (!isNaN(envTimeout) && envTimeout > 0) return envTimeout
+  if (args.includes('logcat')) return 10000
+  if (args.includes('uiautomator') && args.includes('dump')) return 20000
+  return 120000
+}
+
+import type { SpawnOptions } from 'child_process'
+
+export type SpawnOptionsWithTimeout = SpawnOptions & { timeout?: number }
+
+export function execAdb(args: string[], deviceId?: string, options: SpawnOptionsWithTimeout = {}): Promise<string> {
   const adbArgs = getAdbArgs(args, deviceId)
   return new Promise((resolve, reject) => {
     // Extract timeout from options if present, otherwise pass options to spawn
@@ -38,23 +57,8 @@ export function execAdb(args: string[], deviceId?: string, options: any = {}): P
       })
     }
 
-    let timeoutMs: number;
-    if (typeof customTimeout === 'number' && !isNaN(customTimeout)) {
-      timeoutMs = customTimeout;
-    } else {
-      const envTimeout = parseInt(process.env.MCP_ADB_TIMEOUT || process.env.ADB_TIMEOUT || '', 10);
-      if (!isNaN(envTimeout) && envTimeout > 0) {
-        timeoutMs = envTimeout;
-      } else {
-        if (args.includes('logcat')) {
-          timeoutMs = 10000;
-        } else if (args.includes('uiautomator') && args.includes('dump')) {
-          timeoutMs = 20000; // UI dump can be slow
-        } else {
-          timeoutMs = 120000; // default 2 minutes for installs and slow commands
-        }
-      }
-    }
+    const timeoutMs = getAdbTimeout(args, customTimeout)
+
 
     const timeout = setTimeout(() => {
       child.kill()
@@ -80,7 +84,7 @@ export function execAdb(args: string[], deviceId?: string, options: any = {}): P
 }
 
 // Spawn adb but return full streams and exit code so callers can implement fallbacks or stream output
-export function spawnAdb(args: string[], deviceId?: string, options: any = {}): Promise<{ stdout: string, stderr: string, code: number | null }> {
+export function spawnAdb(args: string[], deviceId?: string, options: SpawnOptionsWithTimeout = {}): Promise<{ stdout: string, stderr: string, code: number | null }> {
   const adbArgs = getAdbArgs(args, deviceId)
   return new Promise((resolve, reject) => {
     const { timeout: customTimeout, ...spawnOptions } = options
@@ -92,22 +96,11 @@ export function spawnAdb(args: string[], deviceId?: string, options: any = {}): 
     if (child.stdout) child.stdout.on('data', d => { stdout += d.toString() })
     if (child.stderr) child.stderr.on('data', d => { stderr += d.toString() })
 
-    let timeoutMs: number
-    if (typeof customTimeout === 'number' && !isNaN(customTimeout)) {
-      timeoutMs = customTimeout
-    } else {
-      const envTimeout = parseInt(process.env.MCP_ADB_TIMEOUT || process.env.ADB_TIMEOUT || '', 10)
-      if (!isNaN(envTimeout) && envTimeout > 0) {
-        timeoutMs = envTimeout
-      } else {
-        if (args.includes('logcat')) timeoutMs = 10000
-        else if (args.includes('uiautomator') && args.includes('dump')) timeoutMs = 20000
-        else timeoutMs = 120000
-      }
-    }
+    const timeoutMs = getAdbTimeout(args, customTimeout)
+
 
     const timeout = setTimeout(() => {
-      try { child.kill() } catch (e) {}
+      try { child.kill() } catch {}
       reject(new Error(`ADB command timed out after ${timeoutMs}ms: ${args.join(' ')}`))
     }, timeoutMs)
 
@@ -149,7 +142,7 @@ export async function getAndroidDeviceMetadata(appId: string, deviceId?: string)
         if (deviceLines.length === 1) {
           resolvedDeviceId = deviceLines[0];
         }
-      } catch (e) {
+      } catch {
         // ignore and continue without resolvedDeviceId
       }
     }
@@ -163,7 +156,7 @@ export async function getAndroidDeviceMetadata(appId: string, deviceId?: string)
     
     const simulator = simOutput === '1'
     return { platform: 'android', id: resolvedDeviceId || 'default', osVersion, model, simulator }
-  } catch (e) {
+  } catch {
     return { platform: 'android', id: deviceId || 'default', osVersion: '', model: '', simulator: false }
   }
 }
@@ -200,7 +193,7 @@ export async function listAndroidDevices(appId?: string): Promise<DeviceInfo[]> 
     }))
 
     return infos
-  } catch (e) {
+  } catch {
     return []
   }
 }
@@ -336,7 +329,7 @@ export async function startAndroidLogStream(packageName: string, level: 'error' 
     // Prevent multiple streams per session
     if (activeLogStreams.has(sessionId)) {
       // stop existing
-      try { activeLogStreams.get(sessionId)!.proc.kill() } catch(e) {}
+      try { activeLogStreams.get(sessionId)!.proc.kill() } catch {}
       activeLogStreams.delete(sessionId)
     }
 
@@ -368,7 +361,7 @@ export async function startAndroidLogStream(packageName: string, level: 'error' 
       }
     })
 
-    proc.on('close', (code) => {
+    proc.on('close', () => {
       stream.end()
       activeLogStreams.delete(sessionId)
     })
@@ -376,7 +369,7 @@ export async function startAndroidLogStream(packageName: string, level: 'error' 
     activeLogStreams.set(sessionId, { proc, file })
 
     return { success: true, stream_started: true }
-  } catch (err) {
+  } catch {
     return { success: false, error: 'log_stream_start_failed' }
   }
 }
@@ -386,7 +379,7 @@ export async function stopAndroidLogStream(sessionId: string = 'default'): Promi
   if (!entry) return { success: true }
   try {
     entry.proc.kill()
-  } catch (e) {}
+  } catch {}
   activeLogStreams.delete(sessionId)
   return { success: true }
 }
@@ -452,7 +445,7 @@ export async function readLogStreamLines(sessionId: string = 'default', limit: n
     const crash_summary = crashEntry ? { crash_detected: true, exception: crashEntry.exception, sample: crashEntry.message } : { crash_detected: false }
 
     return { entries, crash_summary }
-  } catch (e) {
+  } catch {
     return { entries: [], crash_summary: { crash_detected: false } }
   }
 }

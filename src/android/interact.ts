@@ -1,9 +1,9 @@
 import { StartAppResponse, TerminateAppResponse, RestartAppResponse, ResetAppDataResponse, WaitForElementResponse, TapResponse, SwipeResponse, TypeTextResponse, PressBackResponse } from "../types.js"
-import { execAdb, getAndroidDeviceMetadata, getDeviceInfo } from "./utils.js"
+import { execAdb, getAndroidDeviceMetadata, getDeviceInfo, spawnAdb } from "./utils.js"
 import { detectJavaHome } from "../utils/java.js"
 import { AndroidObserve } from "./observe.js"
 import { promises as fs } from "fs"
-import { spawn, execSync } from "child_process"
+import { spawn } from "child_process"
 import path from "path"
 import { existsSync } from "fs"
 
@@ -28,7 +28,7 @@ export class AndroidInteract {
         if (element) {
           return { device: deviceInfo, found: true, element };
         }
-      } catch (e) {
+      } catch {
         // Ignore errors during polling and retry
         console.error("Error polling UI tree:", e);
       }
@@ -49,7 +49,7 @@ export class AndroidInteract {
     try {
       await execAdb(['shell', 'input', 'tap', x.toString(), y.toString()], deviceId)
       return { device: deviceInfo, success: true, x, y }
-    } catch (e) {
+    } catch {
       return { device: deviceInfo, success: false, x, y, error: e instanceof Error ? e.message : String(e) }
     }
   }
@@ -61,7 +61,7 @@ export class AndroidInteract {
     try {
       await execAdb(['shell', 'input', 'swipe', x1.toString(), y1.toString(), x2.toString(), y2.toString(), duration.toString()], deviceId)
       return { device: deviceInfo, success: true, start: [x1, y1], end: [x2, y2], duration }
-    } catch (e) {
+    } catch {
       return { device: deviceInfo, success: false, start: [x1, y1], end: [x2, y2], duration, error: e instanceof Error ? e.message : String(e) }
     }
   }
@@ -76,7 +76,7 @@ export class AndroidInteract {
       // Note: 'input text' might fail with some characters or if keyboard isn't ready, but it's the standard ADB way.
       await execAdb(['shell', 'input', 'text', encodedText], deviceId)
       return { device: deviceInfo, success: true, text }
-    } catch (e) {
+    } catch {
       return { device: deviceInfo, success: false, text, error: e instanceof Error ? e.message : String(e) }
     }
   }
@@ -88,7 +88,7 @@ export class AndroidInteract {
     try {
       await execAdb(['shell', 'input', 'keyevent', '4'], deviceId)
       return { device: deviceInfo, success: true }
-    } catch (e) {
+    } catch {
       return { device: deviceInfo, success: false, error: e instanceof Error ? e.message : String(e) }
     }
   }
@@ -139,7 +139,7 @@ export class AndroidInteract {
           try {
             // Remove obvious shell profile hints; avoid touching SDKMAN symlinks or on-disk state.
             delete env.SHELL
-          } catch (e) {}
+          } catch {}
 
           // If we detected a compatible JDK, instruct Gradle to use it and avoid daemon reuse
           // Prepare gradle invocation
@@ -182,29 +182,25 @@ export class AndroidInteract {
 
       // Try normal adb install with streaming attempt
       try {
-        const res = await import('./utils.js').then(u => u.spawnAdb(['install', '-r', apkToInstall], deviceId))
+        const res = await spawnAdb(['install', '-r', apkToInstall], deviceId)
         if (res.code === 0) {
           return { device: deviceInfo, installed: true, output: res.stdout }
         }
         // fallthrough to fallback
-      } catch (e) {
+      } catch {
         // Log and continue to fallback
         console.debug('[android] adb install failed, attempting push+pm fallback:', e instanceof Error ? e.message : String(e))
       }
 
       // Fallback: push APK to device and use pm install -r
-      try {
-        const basename = path.basename(apkToInstall)
-        const remotePath = `/data/local/tmp/${basename}`
-        await execAdb(['push', apkToInstall, remotePath], deviceId)
-        const pmOut = await execAdb(['shell', 'pm', 'install', '-r', remotePath], deviceId)
-        // cleanup remote file
-        try { await execAdb(['shell', 'rm', remotePath], deviceId) } catch (_) {}
-        return { device: deviceInfo, installed: true, output: `${pmOut}` }
-      } catch (e) {
-        return { device: deviceInfo, installed: false, error: e instanceof Error ? e.message : String(e) }
-      }
-    } catch (e) {
+      const basename = path.basename(apkToInstall)
+      const remotePath = `/data/local/tmp/${basename}`
+      await execAdb(['push', apkToInstall, remotePath], deviceId)
+      const pmOut = await execAdb(['shell', 'pm', 'install', '-r', remotePath], deviceId)
+      // cleanup remote file
+      try { await execAdb(['shell', 'rm', remotePath], deviceId) } catch {}
+      return { device: deviceInfo, installed: true, output: pmOut }
+    } catch {
       return { device: deviceInfo, installed: false, error: e instanceof Error ? e.message : String(e) }
     }
   }

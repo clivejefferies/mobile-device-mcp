@@ -27,7 +27,7 @@ async function getScreenResolution(deviceId?: string): Promise<{ width: number; 
     if (match) {
       return { width: parseInt(match[1]), height: parseInt(match[2]) };
     }
-  } catch (e) {
+  } catch {
     // ignore
   }
   return { width: 0, height: 0 };
@@ -137,7 +137,7 @@ export class AndroidObserve {
            if (xmlContent && xmlContent.trim().length > 0 && !xmlContent.includes("ERROR:")) {
               break; // Success
            }
-        } catch (err) {
+        } catch {
            console.error(`Attempt ${attempts} failed: ${err}`);
         }
         
@@ -170,7 +170,7 @@ export class AndroidObserve {
         resolution,
         elements
       };
-    } catch (e) {
+    } catch {
       const errorMessage = `Failed to get UI tree. ADB Path: '${ADB}'. Error: ${e instanceof Error ? e.message : String(e)}`;
       console.error(errorMessage);
       return {
@@ -211,7 +211,7 @@ export class AndroidObserve {
       }
       
       return { device: deviceInfo, logs: filteredLogs, logCount: filteredLogs.length }
-    } catch (e) {
+    } catch {
       console.error("Error fetching logs:", e)
       return { device: deviceInfo, logs: [], logCount: 0 }
     }
@@ -347,7 +347,7 @@ export class AndroidObserve {
          }
       }
 
-    } catch (e) {
+    } catch {
       return {
           device: deviceInfo,
           package: "",

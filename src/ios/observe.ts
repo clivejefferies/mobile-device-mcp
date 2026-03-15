@@ -156,7 +156,7 @@ export class iOSObserve {
         // Clients will read the real dimensions from the PNG header anyway
         resolution: { width: 0, height: 0 },
       }
-    } catch (err) {
+    } catch {
       // Ensure cleanup happens even on error
       await fs.rm(tmpFile).catch(() => {})
       throw new Error(`Failed to capture screenshot: ${err instanceof Error ? err.message : String(err)}`)
@@ -220,7 +220,7 @@ export class iOSObserve {
              jsonContent = JSON.parse(output);
              break; // Success
          }
-      } catch (err) {
+      } catch {
          console.error(`Attempt ${attempts} failed: ${err}`);
       }
       
@@ -256,7 +256,7 @@ export class iOSObserve {
             resolution: { width, height },
             elements
         };
-    } catch (e) {
+    } catch {
          return {
             device,
             screen: "",
