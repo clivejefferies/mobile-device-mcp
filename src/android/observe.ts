@@ -137,8 +137,8 @@ export class AndroidObserve {
            if (xmlContent && xmlContent.trim().length > 0 && !xmlContent.includes("ERROR:")) {
               break; // Success
            }
-        } catch {
-           console.error(`Attempt ${attempts} failed: ${err}`);
+        } catch (e) {
+           console.error(`Attempt ${attempts} failed: ${e}`);
         }
         
         if (attempts === maxAttempts) {
@@ -170,7 +170,7 @@ export class AndroidObserve {
         resolution,
         elements
       };
-    } catch {
+    } catch (e) {
       const errorMessage = `Failed to get UI tree. ADB Path: '${ADB}'. Error: ${e instanceof Error ? e.message : String(e)}`;
       console.error(errorMessage);
       return {
@@ -211,7 +211,7 @@ export class AndroidObserve {
       }
       
       return { device: deviceInfo, logs: filteredLogs, logCount: filteredLogs.length }
-    } catch {
+    } catch (e) {
       console.error("Error fetching logs:", e)
       return { device: deviceInfo, logs: [], logCount: 0 }
     }
@@ -347,7 +347,7 @@ export class AndroidObserve {
          }
       }
 
-    } catch {
+    } catch (e) {
       return {
           device: deviceInfo,
           package: "",

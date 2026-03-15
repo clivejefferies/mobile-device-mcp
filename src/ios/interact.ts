@@ -24,7 +24,7 @@ export class iOSInteract {
         if (element) {
           return { device, found: true, element };
         }
-      } catch {
+      } catch (e) {
         // Ignore errors during polling and retry
         console.error("Error polling UI tree:", e);
       }
@@ -77,7 +77,7 @@ export class iOSInteract {
       });
 
       return { device, success: true, x, y };
-    } catch {
+    } catch (e) {
       return { device, success: false, x, y, error: e instanceof Error ? e.message : String(e) };
     }
   }
@@ -149,7 +149,7 @@ export class iOSInteract {
       try {
         const res = await execCommand(['simctl', 'install', deviceId, toInstall], deviceId)
         return { device, installed: true, output: res.output }
-      } catch {
+      } catch (e) {
         // If simctl fails and idb is available, try idb install for physical devices
         try {
           const child = spawn(IDB, ['--version'])
@@ -177,7 +177,7 @@ export class iOSInteract {
 
         return { device, installed: false, error: e instanceof Error ? e.message : String(e) }
       }
-    } catch {
+    } catch (e) {
       return { device, installed: false, error: e instanceof Error ? e.message : String(e) }
     }
   }
@@ -247,8 +247,8 @@ export class iOSInteract {
         device,
         dataCleared: true
       }
-    } catch {
-      throw new Error(`Failed to clear data for ${bundleId}: ${err instanceof Error ? err.message : String(err)}`)
+    } catch (e) {
+      throw new Error(`Failed to clear data for ${bundleId}: ${e instanceof Error ? e.message : String(e)}`)
     }
   }
 }

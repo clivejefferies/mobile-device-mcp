@@ -2,14 +2,19 @@
 
 All notable changes to the **Mobile Debug MCP** project will be documented in this file.
 
-## [0.9.0] - 2026-03-14
+## [0.9.0] 
 
 ### Added / Changed
-- install_app now builds apps when given a project directory and then installs the produced artifact (Android: Gradle wrapper assembleDebug; iOS: xcodebuild where applicable).
-- Auto-detects and prefers JDK 17 (Android Studio JBR or system JDK). Any JAVA_HOME overrides are scoped to the spawned build process, avoiding global system changes.
-- Respects ADB_PATH and falls back to PATH if unset. Set ADB_PATH to an explicit adb binary to avoid PATH discovery issues.
-- Increased default adb timeout to 120s for installs; timeout can be configured via MCP_ADB_TIMEOUT or ADB_TIMEOUT environment variables.
-- Improved logging and error messages for build/install steps. Unit and integration tests updated and converted to TypeScript.
+- install_app now builds apps when given a project directory and then installs the produced artifact (Android: Gradle wrapper assembleDebug; iOS: xcodebuild where applicable). When a workspace (.xcworkspace) is present, the iOS build uses `-workspace` instead of `-project` to support CocoaPods and multi-project setups.
+- Build orchestration uses a scoped JAVA_HOME (detectJavaHome) and prefers JDK 17 when available; Gradle invocations avoid mutating global env and pass java home via `-Dorg.gradle.java.home`.
+- Streaming ADB support: added `spawnAdb()` (streams stdout/stderr and returns exit code) alongside `execAdb()` (returns buffered stdout). This enables live install output and robust fallbacks.
+- Resilient install flow: streamed `adb install` is attempted first; on failure MCP falls back to `adb push` + `pm install -r` to improve reliability on devices that don't support streamed install or when install times out.
+- Centralised timeout logic: extracted `getAdbTimeout(args, customTimeout)` to standardise timeout selection (precedence: custom timeout > MCP_ADB_TIMEOUT/ADB_TIMEOUT env > per-command defaults — install: 120s, logcat: 10s, uiautomator dump: 20s).
+- Improved types: `execAdb` / `spawnAdb` now accept `SpawnOptionsWithTimeout` (typed extension of Node's SpawnOptions with an optional timeout property).
+- Linting and CI: added ESLint (unused-imports plugin), added `npm run lint` / `npm run lint:fix` scripts, and updated CI to run lint in the unit job. ESLint config converted to the flat `eslint.config.js` format.
+- Tests: unit tests updated to exercise real build/install flows using fake `adb` and `gradlew` wrappers; added detectJavaHome smoke tests. Integration workflows remain manual and require device/emulator access.
+- Misc: improved logging, more informative error messages, and several internal cleanups (removed redundant try/catch, consolidated helper functions).
+
 
 ## [0.8.0]
 

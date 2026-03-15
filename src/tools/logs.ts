@@ -37,7 +37,7 @@ export async function startLogStreamHandler({ platform, packageName, level, sess
     return await startAndroidLogStream(packageName, level || 'error', resolved.id, sid)
   } else {
     const resolved = await resolveTargetDevice({ platform: 'ios', appId: packageName, deviceId })
-    return await startIOSLogStream(packageName, level || 'error', resolved.id, sid)
+    return await startIOSLogStream(packageName, resolved.id, sid)
   }
 }
 
