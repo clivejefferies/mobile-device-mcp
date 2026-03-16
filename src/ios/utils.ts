@@ -96,27 +96,10 @@ export async function findAppBundle(dir: string): Promise<string | undefined> {
   }
   return undefined
 }
-
-export async function getIOSDeviceMetadata(deviceId: string = "booted"): Promise<DeviceInfo> {
-  const entries = await fsPromises.readdir(dir, { withFileTypes: true }).catch(() => [])
-  for (const e of entries) {
-    const full = path.join(dir, e.name)
-    if (e.isDirectory()) {
-      if (full.endsWith('.app')) return full
-      const found = await findAppBundle(full)
-      if (found) return found
-    }
-  }
-  return undefined
-}
-
 export async function getIOSDeviceMetadata(deviceId: string = "booted"): Promise<DeviceInfo> {
   return new Promise((resolve) => {
-    // If deviceId is provided (and not "booted"), we could try to list just that device.
-    // But listing all booted devices is usually fine to find the one we want or just one.
-    // Let's stick to listing all and filtering if needed, or just return basic info if we can't find it.
+    // If deviceId is provided (and not "booted"), attempt to find that device among booted simulators.
     execFile(XCRUN, ['simctl', 'list', 'devices', 'booted', '--json'], (err, stdout) => {
-      // Default fallback
       const fallback: DeviceInfo = {
         platform: "ios",
         id: deviceId,
@@ -133,14 +116,13 @@ export async function getIOSDeviceMetadata(deviceId: string = "booted"): Promise
       try {
         const data = JSON.parse(stdout)
         const devicesMap = data.devices || {}
-        
-        // Find the device
+
         for (const runtime in devicesMap) {
           const devices = devicesMap[runtime]
           if (Array.isArray(devices)) {
             for (const device of devices) {
               if (deviceId === "booted" || device.udid === deviceId) {
-                 resolve({
+                resolve({
                   platform: "ios",
                   id: device.udid,
                   osVersion: parseRuntimeName(runtime),
@@ -152,6 +134,7 @@ export async function getIOSDeviceMetadata(deviceId: string = "booted"): Promise
             }
           }
         }
+
         resolve(fallback)
       } catch {
         resolve(fallback)

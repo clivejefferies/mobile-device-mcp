@@ -100,7 +100,7 @@ process.exit(0)
 
   try {
     // Android build_and_install
-    const ares = await ToolsInteract.buildAndInstallHandler({ platform: 'android', projectPath: androidProject, deviceId: 'emulator-5554' })
+    const ares = await ToolsManage.buildAndInstallHandler({ platform: 'android', projectPath: androidProject, deviceId: 'emulator-5554' })
     console.log('android ndjson:\n', ares.ndjson)
     console.log('android result:', ares.result)
     assert.ok(ares.result.success === true, 'android build_and_install should succeed')
@@ -109,7 +109,7 @@ process.exit(0)
     assert.ok(ares.ndjson.includes('"type":"install"'))
 
     // iOS build_and_install
-    const ires = await ToolsInteract.buildAndInstallHandler({ platform: 'ios', projectPath: iosProject, deviceId: 'booted' })
+    const ires = await ToolsManage.buildAndInstallHandler({ platform: 'ios', projectPath: iosProject, deviceId: 'booted' })
     console.log('ios ndjson:\n', ires.ndjson)
     console.log('ios result:', ires.result)
     assert.ok(ires.result.success === true, 'ios build_and_install should succeed')
