@@ -1,84 +1,45 @@
-import { promises as fs } from 'fs'
-import path from 'path'
 import { resolveTargetDevice } from '../resolve-device.js'
 import { AndroidInteract } from '../android/interact.js'
 import { iOSInteract } from '../ios/interact.js'
 
 export class ToolsInteract {
-  static async installAppHandler({ platform, appPath, deviceId }: { platform?: 'android' | 'ios', appPath: string, deviceId?: string }) {
-    let chosenPlatform: 'android' | 'ios' | undefined = platform
 
-    try {
-      const stat = await fs.stat(appPath).catch(() => null)
-      if (stat && stat.isDirectory()) {
-        const files = (await fs.readdir(appPath).catch(() => [])) as string[]
-        if (files.some(f => f.endsWith('.xcodeproj') || f.endsWith('.xcworkspace'))) {
-          chosenPlatform = 'ios'
-        } else if (files.includes('gradlew') || files.includes('build.gradle') || files.includes('settings.gradle') || (files.includes('app') && (await fs.stat(path.join(appPath, 'app')).catch(() => null)))) {
-          chosenPlatform = 'android'
-        } else {
-          chosenPlatform = 'android'
-        }
-      } else if (typeof appPath === 'string') {
-        const ext = path.extname(appPath).toLowerCase()
-        if (ext === '.apk') chosenPlatform = 'android'
-        else if (ext === '.ipa' || ext === '.app') chosenPlatform = 'ios'
-        else chosenPlatform = 'android'
-      }
-    } catch {
-      chosenPlatform = 'android'
-    }
-
-    if (chosenPlatform === 'android') {
+  static async waitForElementHandler({ platform, text, timeout, deviceId }: { platform: 'android' | 'ios', text: string, timeout?: number, deviceId?: string }) {
+    const effectiveTimeout = timeout ?? 10000
+    if (platform === 'android') {
       const resolved = await resolveTargetDevice({ platform: 'android', deviceId })
-      const androidInteract = new AndroidInteract()
-      const result = await androidInteract.installApp(appPath, resolved.id)
-      return result
+      return await new AndroidInteract().waitForElement(text, effectiveTimeout, resolved.id)
     } else {
       const resolved = await resolveTargetDevice({ platform: 'ios', deviceId })
-      const iosInteract = new iOSInteract()
-      const result = await iosInteract.installApp(appPath, resolved.id)
-      return result
+      return await new iOSInteract().waitForElement(text, effectiveTimeout, resolved.id)
     }
   }
 
-  static async startAppHandler({ platform, appId, deviceId }: { platform: 'android' | 'ios', appId: string, deviceId?: string }) {
-    if (platform === 'android') {
-      const resolved = await resolveTargetDevice({ platform: 'android', appId, deviceId })
-      return await new AndroidInteract().startApp(appId, resolved.id)
+  static async tapHandler({ platform, x, y, deviceId }: { platform?: 'android' | 'ios', x: number, y: number, deviceId?: string }) {
+    const effectivePlatform = platform || 'android'
+    if (effectivePlatform === 'android') {
+      const resolved = await resolveTargetDevice({ platform: 'android', deviceId })
+      return await new AndroidInteract().tap(x, y, resolved.id)
     } else {
-      const resolved = await resolveTargetDevice({ platform: 'ios', appId, deviceId })
-      return await new iOSInteract().startApp(appId, resolved.id)
+      const resolved = await resolveTargetDevice({ platform: 'ios', deviceId })
+      return await new iOSInteract().tap(x, y, resolved.id)
     }
   }
 
-  static async terminateAppHandler({ platform, appId, deviceId }: { platform: 'android' | 'ios', appId: string, deviceId?: string }) {
-    if (platform === 'android') {
-      const resolved = await resolveTargetDevice({ platform: 'android', appId, deviceId })
-      return await new AndroidInteract().terminateApp(appId, resolved.id)
-    } else {
-      const resolved = await resolveTargetDevice({ platform: 'ios', appId, deviceId })
-      return await new iOSInteract().terminateApp(appId, resolved.id)
-    }
+  static async swipeHandler({ x1, y1, x2, y2, duration, deviceId }: { x1: number, y1: number, x2: number, y2: number, duration: number, deviceId?: string }) {
+    const resolved = await resolveTargetDevice({ platform: 'android', deviceId })
+    return await new AndroidInteract().swipe(x1, y1, x2, y2, duration, resolved.id)
   }
 
-  static async restartAppHandler({ platform, appId, deviceId }: { platform: 'android' | 'ios', appId: string, deviceId?: string }) {
-    if (platform === 'android') {
-      const resolved = await resolveTargetDevice({ platform: 'android', appId, deviceId })
-      return await new AndroidInteract().restartApp(appId, resolved.id)
-    } else {
-      const resolved = await resolveTargetDevice({ platform: 'ios', appId, deviceId })
-      return await new iOSInteract().restartApp(appId, resolved.id)
-    }
+  static async typeTextHandler({ text, deviceId }: { text: string, deviceId?: string }) {
+    const resolved = await resolveTargetDevice({ platform: 'android', deviceId })
+    return await new AndroidInteract().typeText(text, resolved.id)
   }
 
-  static async resetAppDataHandler({ platform, appId, deviceId }: { platform: 'android' | 'ios', appId: string, deviceId?: string }) {
-    if (platform === 'android') {
-      const resolved = await resolveTargetDevice({ platform: 'android', appId, deviceId })
-      return await new AndroidInteract().resetAppData(appId, resolved.id)
-    } else {
-      const resolved = await resolveTargetDevice({ platform: 'ios', appId, deviceId })
-      return await new iOSInteract().resetAppData(appId, resolved.id)
-    }
+  static async pressBackHandler({ deviceId }: { deviceId?: string }) {
+    const resolved = await resolveTargetDevice({ platform: 'android', deviceId })
+    return await new AndroidInteract().pressBack(resolved.id)
   }
+
 }
+
