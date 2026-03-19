@@ -4,7 +4,36 @@ import { promises as fsPromises } from 'fs'
 import path from 'path'
 
 export function getXcrunCmd() { return process.env.XCRUN_PATH || 'xcrun' }
+
+export function getConfiguredIdbPath(): string | undefined {
+  if (process.env.MCP_IDB_PATH) return process.env.MCP_IDB_PATH
+  if (process.env.IDB_PATH) return process.env.IDB_PATH
+  const cfgPaths = [
+    process.env.MCP_CONFIG_PATH || (process.env.HOME ? `${process.env.HOME}/.mcp/config.json` : ''),
+    `${process.cwd()}/mcp.config.json`
+  ]
+  try {
+    const fs = require('fs')
+    for (const p of cfgPaths) {
+      if (!p) continue
+      try {
+        if (fs.existsSync(p)) {
+          const raw = fs.readFileSync(p, 'utf8')
+          const json = JSON.parse(raw)
+          if (json) {
+            if (json.idbPath) return json.idbPath
+            if (json.IDB_PATH) return json.IDB_PATH
+          }
+        }
+      } catch {}
+    }
+  } catch {}
+  return undefined
+}
+
 export function getIdbCmd() {
+  const cfg = getConfiguredIdbPath()
+  if (cfg) return cfg
   if (process.env.IDB_PATH) return process.env.IDB_PATH
   try {
     const p = execSync('which idb', { stdio: ['ignore','pipe','ignore'] }).toString().trim()
@@ -25,6 +54,21 @@ export function getIdbCmd() {
     try { execSync(`test -x ${c}`, { stdio: ['ignore','pipe','ignore'] }); return c } catch {}
   }
   return 'idb'
+}
+
+export async function isIDBInstalled(): Promise<boolean> {
+  const cmd = getIdbCmd()
+  try {
+    execSync(`command -v ${cmd}`, { stdio: ['ignore','pipe','ignore'] })
+    return true
+  } catch {
+    try {
+      execSync(`${cmd} list-targets --json`, { stdio: ['ignore','pipe','ignore'], timeout: 2000 })
+      return true
+    } catch {
+      return false
+    }
+  }
 }
 
 export interface IOSResult {
