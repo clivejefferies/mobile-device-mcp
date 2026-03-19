@@ -1,4 +1,4 @@
-import { spawn, execSync } from "child_process"
+import { spawn } from "child_process"
 import { promises as fs } from "fs"
 import { GetLogsResponse, CaptureIOSScreenshotResponse, GetUITreeResponse, UIElement, DeviceInfo } from "../types.js"
 import { execCommand, getIOSDeviceMetadata, validateBundleId, getIdbCmd, getXcrunCmd, isIDBInstalled } from "./utils.js"

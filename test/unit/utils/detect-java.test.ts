@@ -12,7 +12,7 @@ export async function run() {
   // Basic mocking: set JAVA_HOME to a fake path and ensure detectJavaHome still runs without throwing.
   const orig = process.env.JAVA_HOME
   process.env.JAVA_HOME = '/non/existent/java/home'
-  const res2 = await detectJavaHome()
+  await detectJavaHome()
   // accept either undefined or string results depending on environment; do not fail deterministically
   process.env.JAVA_HOME = orig
 

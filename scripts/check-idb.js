@@ -24,7 +24,6 @@ function runInstaller() {
         // fallback: attempt to import and run the installer directly (may rely on ts-node/tsx)
         try {
             // call the exported main; it returns a promise
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
             return installMain() && true;
         }
         catch {

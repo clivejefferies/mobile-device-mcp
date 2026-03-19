@@ -16,7 +16,7 @@ async function findAppInDerived(derivedPath: string): Promise<string | null> {
         }
       }
     }
-  } catch (e) {
+  } catch {
     return null
   }
   return null
