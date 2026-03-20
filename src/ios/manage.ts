@@ -77,13 +77,12 @@ export class iOSManage {
       const XCODEBUILD_TIMEOUT = parseInt(process.env.MCP_XCODEBUILD_TIMEOUT || '', 10) || 180000 // default 3 minutes
       const MAX_RETRIES = parseInt(process.env.MCP_XCODEBUILD_RETRIES || '', 10) || 1
 
-      let attempt = 0
+      const tries = MAX_RETRIES + 1
       let lastStdout = ''
       let lastStderr = ''
       let lastErr: any = null
 
-      while (attempt <= MAX_RETRIES) {
-        attempt++
+      for (let attempt = 1; attempt <= tries; attempt++) {
         // Run xcodebuild with a watchdog
         const res = await new Promise<{ code: number | null, stdout: string, stderr: string, killedByWatchdog?: boolean }>((resolve) => {
           const proc = spawn(xcodeCmd, buildArgs, { cwd: projectPath })
@@ -113,22 +112,27 @@ export class iOSManage {
         lastStderr = res.stderr
 
         if (res.code === 0) {
-          // success
+          // success — clear any previous error and stop retrying
+          lastErr = null
           break
         }
 
+        // record the failure for reporting
         lastErr = new Error(res.stderr || `xcodebuild failed with code ${res.code}`)
 
-        // If killed by watchdog, attempt one retry (loop will continue) unless exhausted
-        if (res.killedByWatchdog) {
-          // write logs for diagnostics
-          try {
-            await fs.writeFile(path.join(resultsDir, `xcodebuild-${attempt}.stdout.log`), res.stdout).catch(() => {})
-            await fs.writeFile(path.join(resultsDir, `xcodebuild-${attempt}.stderr.log`), res.stderr).catch(() => {})
-          } catch {}
+        // write logs for diagnostics (helpful whether killed or not)
+        try {
+          await fs.writeFile(path.join(resultsDir, `xcodebuild-${attempt}.stdout.log`), res.stdout).catch(() => {})
+          await fs.writeFile(path.join(resultsDir, `xcodebuild-${attempt}.stderr.log`), res.stderr).catch(() => {})
+        } catch {}
+
+        // If killed by watchdog and there are remaining attempts, continue to retry
+        if (res.killedByWatchdog && attempt < tries) {
+          continue
         }
 
-        if (attempt > MAX_RETRIES) break
+        // no more retries or not a watchdog kill — break to report lastErr
+        if (attempt >= tries) break
       }
 
       if (lastErr) {

@@ -137,4 +137,8 @@ async function main() {
   process.exit(result.ok ? 0 : 2)
 }
 
-main().catch(e => { console.error('preflight failed', e); process.exit(2) })
+main().catch(e => {
+  // Report structured error on stdout (avoid noisy stderr in normal runs)
+  console.log(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }, null, 2))
+  process.exit(2)
+})
