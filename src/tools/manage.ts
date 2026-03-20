@@ -99,7 +99,7 @@ export class ToolsManage {
     if (!platform || platform === 'android') {
       const androidDir = path.join(projectPath, 'android')
       const android = new AndroidManage()
-      const artifact = await (android as any).build(androidDir, forceClean ? 'clean && assembleDebug' : 'assembleDebug')
+      const artifact = await (android as any).build(androidDir, _forceClean ? 'clean && assembleDebug' : 'assembleDebug')
       return artifact
     }
     if (!platform || platform === 'ios') {
