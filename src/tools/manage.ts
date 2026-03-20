@@ -1,3 +1,4 @@
+/* eslint-disable unused-imports/no-unused-vars */
 import { promises as fs } from 'fs'
 import path from 'path'
 import { resolveTargetDevice, listDevices } from '../utils/resolve-device.js'
@@ -42,7 +43,7 @@ export class ToolsManage {
     return artifact
   }
 
-  static async build_ios({ projectPath, workspace, project, scheme, destinationUDID, derivedDataPath, buildJobs, forceClean }: { projectPath: string, workspace?: string, project?: string, scheme?: string, destinationUDID?: string, derivedDataPath?: string, buildJobs?: number, forceClean?: boolean }) {
+  static async build_ios({ projectPath, workspace: _workspace, project: _project, scheme: _scheme, destinationUDID, derivedDataPath, buildJobs, forceClean }: { projectPath: string, workspace?: string, project?: string, scheme?: string, destinationUDID?: string, derivedDataPath?: string, buildJobs?: number, forceClean?: boolean }) {
     const ios = new iOSManage()
     if (derivedDataPath) process.env.MCP_DERIVED_DATA = derivedDataPath
     if (typeof buildJobs === 'number') process.env.MCP_BUILD_JOBS = String(buildJobs)
@@ -52,7 +53,7 @@ export class ToolsManage {
     return artifact
   }
 
-  static async build_flutter({ projectPath, platform, buildMode, maxWorkers, forceClean }: { projectPath: string, platform?: 'android'|'ios', buildMode?: 'debug'|'release'|'profile', maxWorkers?: number, forceClean?: boolean }) {
+  static async build_flutter({ projectPath, platform, buildMode, maxWorkers: _maxWorkers, forceClean: _forceClean }: { projectPath: string, platform?: 'android'|'ios', buildMode?: 'debug'|'release'|'profile', maxWorkers?: number, forceClean?: boolean }) {
     // Prefer using flutter CLI when available; otherwise delegate to native subproject builders
     const flutterCmd = process.env.FLUTTER_PATH || 'flutter'
     try {
@@ -71,7 +72,7 @@ export class ToolsManage {
         const app = await findAppBundle(path.join(projectPath))
         if (app) return { artifactPath: app }
       }
-    } catch (e) {
+    } catch {
       // If flutter CLI not available or command fails, fall back to native subprojects
     }
 
@@ -92,7 +93,7 @@ export class ToolsManage {
     return { error: 'Unable to build flutter project' }
   }
 
-  static async build_react_native({ projectPath, platform, variant, maxWorkers, forceClean }: { projectPath: string, platform?: 'android'|'ios', variant?: string, maxWorkers?: number, forceClean?: boolean }) {
+  static async build_react_native({ projectPath, platform, variant, maxWorkers: _maxWorkers, forceClean: _forceClean }: { projectPath: string, platform?: 'android'|'ios', variant?: string, maxWorkers?: number, forceClean?: boolean }) {
     // React Native typically uses native subprojects. Delegate to Android/iOS builders.
     if (!platform || platform === 'android') {
       const androidDir = path.join(projectPath, 'android')
@@ -110,7 +111,7 @@ export class ToolsManage {
     return { error: 'Unable to build react-native project' }
   }
 
-  static async buildAppHandler({ platform, projectPath, variant, projectType }: { platform?: 'android' | 'ios', projectPath: string, variant?: string, projectType?: 'native' | 'kmp' | 'react-native' | 'flutter' }) {
+  static async buildAppHandler({ platform, projectPath, variant, projectType: _projectType }: { platform?: 'android' | 'ios', projectPath: string, variant?: string, projectType?: 'native' | 'kmp' | 'react-native' | 'flutter' }) {
     // delegate to platform-specific build implementations
     const chosen = platform || 'android'
     if (chosen === 'android') {
@@ -124,7 +125,7 @@ export class ToolsManage {
     }
   }
 
-  static async installAppHandler({ platform, appPath, deviceId, projectType }: { platform?: 'android' | 'ios', appPath: string, deviceId?: string, projectType?: 'native' | 'kmp' | 'react-native' | 'flutter' }): Promise<InstallAppResponse> {
+  static async installAppHandler({ platform, appPath, deviceId, projectType: _projectType }: { platform?: 'android' | 'ios', appPath: string, deviceId?: string, projectType?: 'native' | 'kmp' | 'react-native' | 'flutter' }): Promise<InstallAppResponse> {
     let chosenPlatform: 'android' | 'ios' | undefined = platform
 
     try {
