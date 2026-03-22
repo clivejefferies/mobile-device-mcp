@@ -2,6 +2,9 @@
 
 All notable changes to the **Mobile Debug MCP** project will be documented in this file.
 
+## [0.13.0]
+- Fixed a crash in the `start_app` tool by adding validation to ensure `appId` and `platform` are provided.
+
 ## [0.12.4]
 - Made projectType and platform mandatory
 
