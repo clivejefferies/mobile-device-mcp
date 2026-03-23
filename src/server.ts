@@ -14,11 +14,11 @@ import {
   InstallAppResponse
 } from "./types.js"
 
-import { ToolsManage } from './tools/manage.js'
-import { ToolsInteract } from './tools/interact.js'
-import { ToolsObserve } from './tools/observe.js'
-import { AndroidManage } from './android/manage.js'
-import { iOSManage } from './ios/manage.js'
+import { ToolsManage } from './manage/index.js'
+import { ToolsInteract } from './interact/index.js'
+import { ToolsObserve } from './observe/index.js'
+import { AndroidManage } from './manage/index.js'
+import { iOSManage } from './manage/index.js'
 
 
 const server = new Server(
@@ -661,7 +661,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 const transport = new StdioServerTransport()
 
 async function main() {
-  await server.connect(transport)
+  await (server as any).connect(transport)
 }
 
 main().catch((error) => {
