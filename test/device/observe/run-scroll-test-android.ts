@@ -8,10 +8,9 @@ const DEVICE_ID = args[0] || process.env.DEVICE_ID || 'emulator-5554'
 const SELECTOR = args[2] || process.env.SELECTOR || 'Generate Session'
 
 async function main() {
-  const interact = new AndroidInteract()
-
   console.log('Starting app if not running...')
-  try { await interact.tap(10,10, DEVICE_ID).catch(()=>{}) } catch {}
+  // Best-effort tap to wake device/emulator
+  try { const tmp = new AndroidInteract(); await tmp.tap(10,10, DEVICE_ID).catch(()=>{}) } catch {}
   await new Promise(r => setTimeout(r, 1000))
 
   console.log('Running scroll_to_element for selector:', SELECTOR)

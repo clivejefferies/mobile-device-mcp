@@ -1,3 +1,5 @@
+import { UIElement, GetUITreeResponse, SwipeResponse } from '../types.js'
+
 export interface ScrollSelector { text?: string; resourceId?: string; contentDesc?: string; className?: string }
 
 export async function scrollToElementShared(opts: {
@@ -6,13 +8,13 @@ export async function scrollToElementShared(opts: {
   maxScrolls?: number,
   scrollAmount?: number,
   deviceId?: string,
-  fetchTree: () => Promise<any>,
-  swipe: (x1: number, y1: number, x2: number, y2: number, duration: number, deviceId?: string) => Promise<any>,
+  fetchTree: () => Promise<GetUITreeResponse>,
+  swipe: (x1: number, y1: number, x2: number, y2: number, duration: number, deviceId?: string) => Promise<SwipeResponse>,
   stabilizationDelayMs?: number
-}) {
+}): Promise<{ success: boolean; reason?: string; element?: Partial<UIElement>; scrollsPerformed: number }> {
   const { selector, direction = 'down', maxScrolls = 10, scrollAmount = 0.7, deviceId, fetchTree, swipe, stabilizationDelayMs = 350 } = opts
 
-  const matchElement = (el: any) => {
+  const matchElement = (el?: UIElement) => {
     if (!el) return false
     if (selector.text !== undefined && selector.text !== el.text) return false
     if (selector.resourceId !== undefined && selector.resourceId !== el.resourceId) return false
@@ -21,7 +23,7 @@ export async function scrollToElementShared(opts: {
     return true
   }
 
-  const isVisible = (el: any, resolution: any) => {
+  const isVisible = (el?: UIElement, resolution?: GetUITreeResponse['resolution']) => {
     if (!el) return false
     if (el.visible === false) return false
     if (!el.bounds || !resolution || !resolution.width || !resolution.height) return (el.visible === undefined ? true : !!el.visible)
@@ -31,7 +33,7 @@ export async function scrollToElementShared(opts: {
     return withinX && withinY
   }
 
-  const findVisibleMatch = (elements: any[], resolution: any) => {
+  const findVisibleMatch = (elements?: UIElement[], resolution?: GetUITreeResponse['resolution']) => {
     if (!Array.isArray(elements)) return null
     for (const e of elements) {
       if (matchElement(e) && isVisible(e, resolution)) return e
@@ -48,9 +50,9 @@ export async function scrollToElementShared(opts: {
     return { success: true, element: { text: found.text, resourceId: found.resourceId, bounds: found.bounds }, scrollsPerformed: 0 }
   }
 
-  const fingerprintOf = (t: any) => {
+  const fingerprintOf = (t: GetUITreeResponse) => {
     try {
-      return JSON.stringify((t.elements || []).map((e: any) => ({ text: e.text, resourceId: e.resourceId, bounds: e.bounds })))
+      return JSON.stringify((t.elements || []).map((e: UIElement) => ({ text: e.text, resourceId: e.resourceId, bounds: e.bounds })))
     } catch {
       return ''
     }
@@ -81,8 +83,9 @@ export async function scrollToElementShared(opts: {
     const { x1, y1, x2, y2 } = computeCoords()
     try {
       await swipe(x1, y1, x2, y2, duration, deviceId)
-    } catch {
-      // swallow and continue
+    } catch (e) {
+      // Log swipe failures to aid debugging but don't fail the overall flow
+      try { console.warn(`scrollToElement swipe failed: ${e instanceof Error ? e.message : String(e)}`) } catch {}
     }
 
     scrollsPerformed++

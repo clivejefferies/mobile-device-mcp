@@ -83,12 +83,7 @@ async function runTests() {
   console.log('Result:', res3.success === false && (res3 as any).attempts === 1 ? 'PASS' : 'FAIL')
   console.log('Reason:', (res3 as any).reason || JSON.stringify(res3))
 
-  // Restore
-  (ToolsObserve as any).getUITreeHandler = origGet
-  ;(ToolsInteract as any).swipeHandler = origSwipe
-}
-
-  // Offscreen test: ensure scrollToElement performs a swipe when target initially off-screen
+  // Test 4: Offscreen element scrolls into view
   console.log('\nTest 4: Offscreen element scrolls into view')
   const ai = new (await import('../../../src/android/interact.js')).AndroidInteract()
   const origObserveGet = ai['observe'].getUITree
@@ -120,6 +115,11 @@ async function runTests() {
 
   ;(ai['observe'] as any).getUITree = origObserveGet
   ;(ai as any).swipe = origAiSwipe
+
+  // Restore
+  (ToolsObserve as any).getUITreeHandler = origGet
+  ;(ToolsInteract as any).swipeHandler = origSwipe
+}
 
 // Ensure console.log is a function (some test runners replace it)
 if (typeof console.log !== 'function') {
