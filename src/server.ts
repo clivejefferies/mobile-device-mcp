@@ -284,6 +284,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       }
     },
     {
+      name: "get_screen_fingerprint",
+      description: "Generate a stable fingerprint representing the current visible screen (activity + visible UI elements).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          platform: { type: "string", enum: ["android", "ios"], description: "Optional platform override (android|ios)" },
+          deviceId: { type: "string", description: "Optional device id/udid to target" }
+        }
+      }
+    },
+    {
       name: "wait_for_element",
       description: "Wait until a UI element with matching text appears on screen or timeout is reached.",
       inputSchema: {
@@ -576,6 +587,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (name === "get_current_screen") {
       const { deviceId } = (args || {}) as any
       const res = await ToolsObserve.getCurrentScreenHandler({ deviceId })
+      return wrapResponse(res)
+    }
+
+    if (name === "get_screen_fingerprint") {
+      const { platform, deviceId } = (args || {}) as any
+      const res = await ToolsObserve.getScreenFingerprintHandler({ platform, deviceId })
       return wrapResponse(res)
     }
 

@@ -78,5 +78,30 @@ export class ToolsObserve {
       return await new iOSObserve().captureScreenshot(resolved.id)
     }
   }
+
+  static async getScreenFingerprintHandler({ platform, deviceId }: { platform?: 'android' | 'ios', deviceId?: string } = {}) {
+    if (platform === 'android') {
+      const resolved = await resolveTargetDevice({ platform: 'android', deviceId })
+      return await new AndroidObserve().getScreenFingerprint(resolved.id)
+    }
+
+    if (platform === 'ios') {
+      const resolved = await resolveTargetDevice({ platform: 'ios', deviceId })
+      return await new iOSObserve().getScreenFingerprint(resolved.id)
+    }
+
+    // No platform specified: try android first, then ios
+    try {
+      const resolved = await resolveTargetDevice({ platform: 'android', deviceId })
+      return await new AndroidObserve().getScreenFingerprint(resolved.id)
+    } catch {
+      try {
+        const resolved = await resolveTargetDevice({ platform: 'ios', deviceId })
+        return await new iOSObserve().getScreenFingerprint(resolved.id)
+      } catch (err) {
+        return { fingerprint: null, error: (err instanceof Error ? err.message : String(err)) }
+      }
+    }
+  }
 }
 
