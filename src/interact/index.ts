@@ -260,4 +260,112 @@ export class ToolsInteract {
     return { success: false, reason: 'timeout', lastFingerprint, elapsedMs: Date.now() - start }
   }
 
+  static async observeUntilHandler({ type, query, timeoutMs = 5000, pollIntervalMs = 200, platform, deviceId }: { type: 'ui' | 'log' | 'screen' | 'idle', query?: string, timeoutMs?: number, pollIntervalMs?: number, platform?: 'android' | 'ios', deviceId?: string }) {
+    const start = Date.now()
+    const deadline = start + (timeoutMs || 0)
+    const q = (query === null || query === undefined) ? '' : String(query)
+
+    // Baseline state
+    let initialFingerprint: string | null = null
+    try {
+      const fpRes = await ToolsObserve.getScreenFingerprintHandler({ platform, deviceId }) as ScreenFingerprintResponse | null
+      initialFingerprint = fpRes?.fingerprint ?? null
+    } catch (e) { console.error('observeUntil: error getting initial fingerprint', e); initialFingerprint = null }
+
+    // For logs, capture a baseline snapshot (count or last line) to avoid matching historical lines
+    let baselineLastLine: string | null = null
+    try {
+      const gl = await ToolsObserve.getLogsHandler({ platform, deviceId, lines: 200 })
+      const logsArr = Array.isArray((gl as any).logs) ? (gl as any).logs : []
+      baselineLastLine = logsArr.length ? logsArr[logsArr.length - 1] : null
+    } catch { /* non-fatal */ }
+
+    const stableIdleMs = 1000
+    let lastChangeAt = Date.now()
+    let prevFingerprint = initialFingerprint
+
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+    while (Date.now() <= deadline) {
+      try {
+        if (type === 'ui') {
+          // fast findElement with short timeout to avoid blocking
+          try {
+            const found = await ToolsInteract.findElementHandler({ query: q, exact: false, timeoutMs: Math.min(500, timeoutMs || 500), platform, deviceId })
+            if (found && (found as any).found) {
+              return { success: true, type: 'ui', matched: true, details: `UI element matched '${q}'`, timestamp: Date.now(), element: (found as any).element }
+            }
+          } catch (e) { console.error('observeUntil(ui) find error:', e) }
+        } else if (type === 'log') {
+          try {
+            // Try reading from active stream first
+            const stream = await ToolsObserve.readLogStreamHandler({ platform, sessionId: 'default', limit: 200 }) as any
+            const entries = (stream && Array.isArray(stream.entries)) ? stream.entries : []
+            for (const ent of entries) {
+              const msg = ent && (ent.message || ent.msg || ent) ? (ent.message || ent.msg || ent) : ''
+              if (q && String(msg).includes(q)) {
+                return { success: true, type: 'log', matched: true, details: `Log matched '${q}'`, timestamp: Date.now(), log: { message: msg, raw: ent } }
+              }
+            }
+
+            // Fallback to snapshot logs
+            const gl = await ToolsObserve.getLogsHandler({ platform, deviceId, lines: 200 }) as any
+            const logsArr = Array.isArray(gl && gl.logs) ? gl.logs : []
+            // Only consider new lines after baselineLastLine when possible
+            let startIndex = 0
+            if (baselineLastLine) {
+              const idx = logsArr.lastIndexOf(baselineLastLine)
+              startIndex = idx >= 0 ? idx + 1 : 0
+            }
+            for (let i = startIndex; i < logsArr.length; i++) {
+              const line = logsArr[i]
+              if (q && String(line).includes(q)) {
+                return { success: true, type: 'log', matched: true, details: `Log matched '${q}'`, timestamp: Date.now(), log: { message: line } }
+              }
+            }
+          } catch (e) { console.error('observeUntil(log) error:', e) }
+        } else if (type === 'screen') {
+          try {
+            const fpRes = await ToolsObserve.getScreenFingerprintHandler({ platform, deviceId }) as ScreenFingerprintResponse | null
+            const fp = fpRes?.fingerprint ?? null
+            if (fp !== null && fp !== undefined && fp !== initialFingerprint) {
+              if (q) {
+                // optionally validate query against new screen context
+                try {
+                  const found = await ToolsInteract.findElementHandler({ query: q, exact: false, timeoutMs: Math.min(500, timeoutMs || 500), platform, deviceId })
+                  if (found && (found as any).found) {
+                    return { success: true, type: 'screen', matched: true, details: `Screen changed and query matched on new screen`, timestamp: Date.now(), newFingerprint: fp, element: (found as any).element }
+                  }
+                } catch (e) { console.error('observeUntil(screen) find error:', e) }
+                // If query provided but not matched yet, continue polling until timeout
+              } else {
+                return { success: true, type: 'screen', matched: true, details: 'Screen fingerprint changed', timestamp: Date.now(), newFingerprint: fp }
+              }
+            }
+          } catch (e) { console.error('observeUntil(screen) error:', e) }
+        } else if (type === 'idle') {
+          try {
+            const fpRes = await ToolsObserve.getScreenFingerprintHandler({ platform, deviceId }) as ScreenFingerprintResponse | null
+            const fp = fpRes?.fingerprint ?? null
+            if (fp !== prevFingerprint) {
+              prevFingerprint = fp
+              lastChangeAt = Date.now()
+            } else {
+              if (Date.now() - lastChangeAt >= stableIdleMs) {
+                return { success: true, type: 'idle', matched: true, details: `UI stable for ${stableIdleMs}ms`, timestamp: Date.now(), fingerprint: fp }
+              }
+            }
+          } catch (e) { console.error('observeUntil(idle) error:', e) }
+        }
+      } catch (e) {
+        console.error('observeUntil: unexpected error', e)
+      }
+
+      // Respect poll interval and avoid tight loop
+      await sleep(pollIntervalMs || 200)
+    }
+
+    return { success: false, error: 'Timeout waiting for condition', type, timeoutMs }
+  }
+
 }

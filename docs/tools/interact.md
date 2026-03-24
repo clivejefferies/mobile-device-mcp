@@ -151,3 +151,55 @@ Notes:
 - The tool favours actionable (clickable/focusable) targets; when a matching node is not directly actionable, it finds the smallest containing clickable ancestor.
 - Unit tests for edge cases (parent-clickable child-text, resource-id matches, fuzzy matching) are under `test/observe/unit/find_element.test.ts`.
 
+---
+
+## observe_until
+
+Purpose:
+- Wait for a condition to occur on the device: UI element appearance, a log line, a screen fingerprint change, or an idle/stable screen state.
+
+Supported types and behavior:
+- ui: Delegates to `find_element` to perform a semantic search of the UI tree. Returns the matched element descriptor (including tapCoordinates) when found.
+- log: Reads the active log stream (via `start_log_stream`/`readLogStreamHandler`) and falls back to a snapshot of recent logs (`getLogsHandler`). Matches when the query substring appears in a new log line after a captured baseline.
+- screen: Compares screen fingerprints (visual checks) against an initial baseline and returns when fingerprint changes. If `query` is provided it will attempt a `find_element` on the new screen to validate the expected content.
+- idle: Waits until the screen fingerprint remains stable for a short stability window (default 1000ms).
+
+Input (ToolsInteract.observeUntilHandler):
+```
+{ "type": "ui|log|screen|idle", "query": "optional string", "timeoutMs": 5000, "pollIntervalMs": 200, "platform": "android|ios", "deviceId": "optional device id" }
+```
+
+Success response highlights:
+- success: true
+- type: requested type
+- matched: true
+- details: human-friendly explanation
+- timestamp: epoch ms
+- element: (for ui/screen when matched) actionable element metadata with tapCoordinates
+- log: (for log) matched log message and raw entry
+- newFingerprint: (for screen) new fingerprint value
+
+Failure/timeout response:
+- success: false
+- error or reason: explanation
+- type: requested type
+- timeoutMs: value used
+
+Notes & tips:
+- Defaults (timeoutMs=5000, pollIntervalMs=200) balance responsiveness with device query overhead; adjust in tests or scripts as needed.
+- For UI-sensitive flows prefer type='ui' rather than relying solely on visual fingerprint changes, as some UI updates don't alter the fingerprint.
+
+Tests:
+- Unit: `test/interact/unit/observe_until.test.ts`
+- Device runner: `test/interact/device/observe_until_device.ts` (requires devices/emulators and adb/xcrun in PATH)
+
+Example:
+```
+// Wait up to 5s for a button labeled "Generate Session" on Android
+ToolsInteract.observeUntilHandler({ type: 'ui', query: 'Generate Session', timeoutMs: 5000, platform: 'android' })
+```
+
+Troubleshooting:
+- If observe_until(log) never matches, ensure log streaming is started for the target package and baseline logs captured correctly.
+- If observe_until(screen) times out despite visible UI change, try type='ui' to validate content-level changes.
+

@@ -2,6 +2,11 @@
 
 All notable changes to the **Mobile Debug MCP** project will be documented in this file.
 
+## [0.19.0]
+
+- Added `observe_until` interaction tool: waits for UI, log, screen fingerprint or idle conditions with configurable polling and timeout. Returns rich details on match (element info, log line, new fingerprint).
+
+
 ## [0.18.0]
 - Added `find_element` interact tool: semantic UI element search with actionable tap coordinates and lightweight telemetry. The tool searches the UI tree for the best match by text, content description, resource-id, and class, scores candidates (exact, partial, resource-id), and returns the most relevant visible element. When a matching node is non-interactable (e.g., Compose Text child), the tool locates a clickable ancestor (parent or containing element) and returns actionable tapCoordinates (x,y). The handler also returns a `confidence` value and `telemetry` metadata (matchedIndex, matchedInteractable) to aid agent decision-making and logging. Implemented as `ToolsInteract.findElementHandler` and covered by unit tests.
 
