@@ -354,6 +354,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["platform", "text"]
       }
     },
+    {
+      name: "find_element",
+      description: "Find a UI element by semantic query (text, content-desc, resource-id, class). Returns best match.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Search query (text or label)" },
+          exact: { type: "boolean", description: "Require exact match (true/false)", default: false },
+          timeoutMs: { type: "number", description: "Timeout in ms to keep searching", default: 3000 },
+          platform: { type: "string", enum: ["android","ios"], description: "Optional platform override" },
+          deviceId: { type: "string", description: "Optional device serial/udid" }
+        },
+        required: ["query"]
+      }
+    },
 
     {
       name: "tap",
@@ -644,6 +659,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (name === "wait_for_element") {
       const { platform, text, timeout, deviceId } = (args || {}) as any
       const res = await ToolsInteract.waitForElementHandler({ platform, text, timeout, deviceId })
+      return wrapResponse(res)
+    }
+
+    if (name === "find_element") {
+      const { query, exact = false, timeoutMs = 3000, platform, deviceId } = (args || {}) as any
+      const res = await ToolsInteract.findElementHandler({ query, exact, timeoutMs, platform, deviceId })
       return wrapResponse(res)
     }
 

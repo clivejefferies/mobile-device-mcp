@@ -2,6 +2,10 @@
 
 All notable changes to the **Mobile Debug MCP** project will be documented in this file.
 
+## [0.18.0]
+- Added `find_element` interact tool: semantic UI element search with actionable tap coordinates and lightweight telemetry. The tool searches the UI tree for the best match by text, content description, resource-id, and class, scores candidates (exact, partial, resource-id), and returns the most relevant visible element. When a matching node is non-interactable (e.g., Compose Text child), the tool locates a clickable ancestor (parent or containing element) and returns actionable tapCoordinates (x,y). The handler also returns a `confidence` value and `telemetry` metadata (matchedIndex, matchedInteractable) to aid agent decision-making and logging. Implemented as `ToolsInteract.findElementHandler` and covered by unit tests.
+
+
 ## [0.17.0]
 - Added `capture_debug_snapshot` observe tool: captures a full debugging snapshot including screenshot (base64), UI tree, current activity (Android), screen fingerprint, and recent logs (prefers active log stream, falls back to snapshot logs). Returns a single structured JSON object and includes per-part error fields for partial failures. Implemented as `ToolsObserve.captureDebugSnapshotHandler` and registered in the server.
 

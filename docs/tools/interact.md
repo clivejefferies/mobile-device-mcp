@@ -101,3 +101,53 @@ Notes:
 - Default `timeoutMs` is 5000ms and default `pollIntervalMs` is 300ms; callers may override these.
 - Implemented as an interact-level tool and delegates platform-specific fingerprint calculation to the observe layer (`get_screen_fingerprint`).
 
+---
+
+## find_element
+
+Purpose:
+
+Locate a UI element on the current screen using semantic matching and return an actionable element descriptor (including tap coordinates) and confidence telemetry.
+
+Input:
+
+```json
+{ "query": "string", "exact": false, "timeoutMs": 3000, "platform": "android|ios", "deviceId": "optional device id" }
+```
+
+Behaviour:
+
+- Fetches the current UI tree (get_ui_tree) and scores visible elements using: text, content description, resource-id, and class name.
+- Normalises strings (lowercase, trimmed). If exact=true require exact match; otherwise allow partial matches (contains) and resource-id/class matches.
+- Considers element bounds and visibility; scores non-interactable children as matches and attempts to resolve a clickable ancestor (parent index or containing clickable element) to produce an actionable element.
+- Retries until timeoutMs; stops early for high-confidence matches.
+- Does not block on long operations and returns partial results where appropriate.
+
+Output:
+
+```json
+{
+  "found": true,
+  "element": {
+    "text": "Login",
+    "resourceId": "com.example:id/login",
+    "contentDesc": null,
+    "class": "android.widget.Button",
+    "bounds": { "left":0, "top":0, "right":100, "bottom":50 },
+    "clickable": true,
+    "enabled": true,
+    "tapCoordinates": { "x":50, "y":25 },
+    "telemetry": { "matchedIndex": 3, "matchedInteractable": true }
+  },
+  "score": 1.0,
+  "confidence": 1.0
+}
+```
+
+Notes:
+
+- `tapCoordinates` are the recommended center point to use for `tap` calls.
+- `confidence` mirrors the internal scoring (0..1) and is suitable for telemetry or logging to decide whether to proceed with an automated action.
+- The tool favours actionable (clickable/focusable) targets; when a matching node is not directly actionable, it finds the smallest containing clickable ancestor.
+- Unit tests for edge cases (parent-clickable child-text, resource-id matches, fuzzy matching) are under `test/observe/unit/find_element.test.ts`.
+
