@@ -270,7 +270,7 @@ export class ToolsInteract {
     try {
       const fpRes = await ToolsObserve.getScreenFingerprintHandler({ platform, deviceId }) as ScreenFingerprintResponse | null
       initialFingerprint = fpRes?.fingerprint ?? null
-    } catch (e) { console.error('observeUntil: error getting initial fingerprint', e); initialFingerprint = null }
+    } catch (err) { console.error('observeUntil: error getting initial fingerprint', err); initialFingerprint = null }
 
     // For logs, capture a baseline snapshot (count or last line) to avoid matching historical lines
     let baselineLastLine: string | null = null
@@ -286,16 +286,29 @@ export class ToolsInteract {
 
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
+    // Telemetry
+    let pollCount = 0
+    let timeToMatch: number | null = null
+    let matchSource: string | null = null
+
     while (Date.now() <= deadline) {
+      pollCount++
       try {
         if (type === 'ui') {
           // fast findElement with short timeout to avoid blocking
           try {
             const found = await ToolsInteract.findElementHandler({ query: q, exact: false, timeoutMs: Math.min(500, timeoutMs || 500), platform, deviceId })
             if (found && (found as any).found) {
-              return { success: true, type: 'ui', matched: true, details: `UI element matched '${q}'`, timestamp: Date.now(), element: (found as any).element }
+              timeToMatch = Date.now() - start
+              // determine matchSource heuristics
+              const el = (found as any).element || {}
+              if (el && el.resourceId && String(el.resourceId).toLowerCase().includes(q.toLowerCase())) matchSource = 'ui-resourceId'
+              else if (el && el.text && String(el.text).toLowerCase() === q.toLowerCase()) matchSource = 'ui-exact'
+              else matchSource = 'ui-partial'
+
+              return { success: true, type: 'ui', matched: true, details: `UI element matched '${q}'`, timestamp: Date.now(), element: (found as any).element, telemetry: { pollCount, timeToMatch, elapsedMs: Date.now() - start, matchSource } }
             }
-          } catch (e) { console.error('observeUntil(ui) find error:', e) }
+          } catch (err) { console.error('observeUntil(ui) find error:', err) }
         } else if (type === 'log') {
           try {
             // Try reading from active stream first
@@ -304,7 +317,9 @@ export class ToolsInteract {
             for (const ent of entries) {
               const msg = ent && (ent.message || ent.msg || ent) ? (ent.message || ent.msg || ent) : ''
               if (q && String(msg).includes(q)) {
-                return { success: true, type: 'log', matched: true, details: `Log matched '${q}'`, timestamp: Date.now(), log: { message: msg, raw: ent } }
+                timeToMatch = Date.now() - start
+                matchSource = 'log-stream'
+                return { success: true, type: 'log', matched: true, details: `Log matched '${q}'`, timestamp: Date.now(), log: { message: msg, raw: ent }, telemetry: { pollCount, timeToMatch, elapsedMs: Date.now() - start, matchSource } }
               }
             }
 
@@ -320,10 +335,12 @@ export class ToolsInteract {
             for (let i = startIndex; i < logsArr.length; i++) {
               const line = logsArr[i]
               if (q && String(line).includes(q)) {
-                return { success: true, type: 'log', matched: true, details: `Log matched '${q}'`, timestamp: Date.now(), log: { message: line } }
+                timeToMatch = Date.now() - start
+                matchSource = 'log-snapshot'
+                return { success: true, type: 'log', matched: true, details: `Log matched '${q}'`, timestamp: Date.now(), log: { message: line }, telemetry: { pollCount, timeToMatch, elapsedMs: Date.now() - start, matchSource } }
               }
             }
-          } catch (e) { console.error('observeUntil(log) error:', e) }
+          } catch (err) { console.error('observeUntil(log) error:', err) }
         } else if (type === 'screen') {
           try {
             const fpRes = await ToolsObserve.getScreenFingerprintHandler({ platform, deviceId }) as ScreenFingerprintResponse | null
@@ -334,15 +351,19 @@ export class ToolsInteract {
                 try {
                   const found = await ToolsInteract.findElementHandler({ query: q, exact: false, timeoutMs: Math.min(500, timeoutMs || 500), platform, deviceId })
                   if (found && (found as any).found) {
-                    return { success: true, type: 'screen', matched: true, details: `Screen changed and query matched on new screen`, timestamp: Date.now(), newFingerprint: fp, element: (found as any).element }
+                    timeToMatch = Date.now() - start
+                    matchSource = 'screen-validated-ui'
+                    return { success: true, type: 'screen', matched: true, details: `Screen changed and query matched on new screen`, timestamp: Date.now(), newFingerprint: fp, element: (found as any).element, telemetry: { pollCount, timeToMatch, elapsedMs: Date.now() - start, matchSource } }
                   }
-                } catch (e) { console.error('observeUntil(screen) find error:', e) }
+                } catch (err) { console.error('observeUntil(screen) find error:', err) }
                 // If query provided but not matched yet, continue polling until timeout
               } else {
-                return { success: true, type: 'screen', matched: true, details: 'Screen fingerprint changed', timestamp: Date.now(), newFingerprint: fp }
+                timeToMatch = Date.now() - start
+                matchSource = 'screen-fingerprint'
+                return { success: true, type: 'screen', matched: true, details: 'Screen fingerprint changed', timestamp: Date.now(), newFingerprint: fp, telemetry: { pollCount, timeToMatch, elapsedMs: Date.now() - start, matchSource } }
               }
             }
-          } catch (e) { console.error('observeUntil(screen) error:', e) }
+          } catch (err) { console.error('observeUntil(screen) error:', err) }
         } else if (type === 'idle') {
           try {
             const fpRes = await ToolsObserve.getScreenFingerprintHandler({ platform, deviceId }) as ScreenFingerprintResponse | null
@@ -352,20 +373,31 @@ export class ToolsInteract {
               lastChangeAt = Date.now()
             } else {
               if (Date.now() - lastChangeAt >= stableIdleMs) {
-                return { success: true, type: 'idle', matched: true, details: `UI stable for ${stableIdleMs}ms`, timestamp: Date.now(), fingerprint: fp }
+                timeToMatch = Date.now() - start
+                matchSource = 'idle-stable'
+                return { success: true, type: 'idle', matched: true, details: `UI stable for ${stableIdleMs}ms`, timestamp: Date.now(), fingerprint: fp, telemetry: { pollCount, timeToMatch, elapsedMs: Date.now() - start, matchSource } }
               }
             }
-          } catch (e) { console.error('observeUntil(idle) error:', e) }
+          } catch (err) { console.error('observeUntil(idle) error:', err) }
         }
-      } catch (e) {
-        console.error('observeUntil: unexpected error', e)
+      } catch (err) {
+        console.error('observeUntil: unexpected error', err)
       }
 
       // Respect poll interval and avoid tight loop
       await sleep(pollIntervalMs || 200)
     }
 
-    return { success: false, error: 'Timeout waiting for condition', type, timeoutMs }
+    // On timeout, capture a failure snapshot to aid debugging (best-effort)
+    let snapshot: any = null
+    try {
+      snapshot = await ToolsObserve.captureDebugSnapshotHandler({ reason: `observe_until timeout for ${type}`, includeLogs: true, platform, deviceId })
+    } catch (err) {
+      snapshot = { error: err instanceof Error ? err.message : String(err) }
+    }
+
+    const elapsed = Date.now() - start
+    return { success: false, error: 'Timeout waiting for condition', type, timeoutMs, telemetry: { pollCount, elapsedMs: elapsed, matchSource: null }, snapshot }
   }
 
 }

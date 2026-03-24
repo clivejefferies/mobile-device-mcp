@@ -11,6 +11,16 @@ async function runTests() {
   const origResolveObserve = (Observe as any).ToolsObserve.resolveObserve
 
   try {
+    // Timeout / snapshot case: ensure snapshot captured when condition not met
+    const origCapture = (Observe as any).ToolsObserve.captureDebugSnapshotHandler
+    ;(Observe as any).ToolsObserve.captureDebugSnapshotHandler = async ({ reason }: any) => ({ reason, fingerprint: 'snap-123', ui_tree: null, logs: [] })
+    // make findElement always fail
+    (ToolsInteract as any).findElementHandler = async () => ({ found: false })
+    const resTimeout = await ToolsInteract.observeUntilHandler({ type: 'ui', query: 'WillNeverExist', timeoutMs: 500, pollIntervalMs: 100, platform: 'android' })
+    const okTimeout = resTimeout && !(resTimeout as any).success && (resTimeout as any).snapshot && (resTimeout as any).snapshot.fingerprint === 'snap-123' && (resTimeout as any).telemetry && (resTimeout as any).telemetry.pollCount > 0
+    console.log('Timeout Snapshot Test:', okTimeout ? 'PASS' : 'FAIL', JSON.stringify((resTimeout as any).telemetry || {}, null, 2))
+    ;(Observe as any).ToolsObserve.captureDebugSnapshotHandler = origCapture
+
     // UI condition: findElement returns found on 2nd call
     let calls = 0
     ;(ToolsInteract as any).findElementHandler = async (args) => {
@@ -21,7 +31,8 @@ async function runTests() {
     }
 
     const resUi = await ToolsInteract.observeUntilHandler({ type: 'ui', query: 'Generate Session', timeoutMs: 3000, pollIntervalMs: 100, platform: 'android' })
-    console.log('UI Test:', (resUi && (resUi as any).success) ? 'PASS' : 'FAIL')
+    const okUi = resUi && (resUi as any).success && (resUi as any).telemetry && (resUi as any).telemetry.pollCount > 0 && (resUi as any).telemetry.timeToMatch >= 0
+    console.log('UI Test:', okUi ? 'PASS' : 'FAIL', JSON.stringify((resUi as any).telemetry || {}, null, 2))
 
     // Log condition: stream empty, snapshot contains matching line
     ;(Observe as any).ToolsObserve.readLogStreamHandler = async () => ({ entries: [ { message: 'nothing' } ] })
@@ -33,19 +44,22 @@ async function runTests() {
     }
 
     const resLog = await ToolsInteract.observeUntilHandler({ type: 'log', query: 'Server', timeoutMs: 3000, pollIntervalMs: 100, platform: 'android' })
-    console.log('Log Test:', (resLog && (resLog as any).success) ? 'PASS' : 'FAIL')
+    const okLog = resLog && (resLog as any).success && (resLog as any).telemetry && (resLog as any).telemetry.pollCount > 0 && (resLog as any).telemetry.matchSource === 'log-snapshot'
+    console.log('Log Test:', okLog ? 'PASS' : 'FAIL', JSON.stringify((resLog as any).telemetry || {}, null, 2))
 
     // Screen condition: fingerprint changes after a few polls
     let seq = ['A', 'A', 'B']
     ;(Observe as any).ToolsObserve.resolveObserve = async () => ({ observe: { getScreenFingerprint: async () => ({ fingerprint: seq.length ? seq.shift() : null }) }, resolved: { id: 'mock' } })
     const resScreen = await ToolsInteract.observeUntilHandler({ type: 'screen', timeoutMs: 3000, pollIntervalMs: 100, platform: 'android' })
-    console.log('Screen Test:', (resScreen && (resScreen as any).success) ? 'PASS' : 'FAIL')
+    const okScreen = resScreen && (resScreen as any).success && (resScreen as any).telemetry && (resScreen as any).telemetry.matchSource === 'screen-fingerprint'
+    console.log('Screen Test:', okScreen ? 'PASS' : 'FAIL', JSON.stringify((resScreen as any).telemetry || {}, null, 2))
 
     // Idle condition: stable fingerprints observed
     let idleSeq = ['X', 'X', 'X']
     ;(Observe as any).ToolsObserve.resolveObserve = async () => ({ observe: { getScreenFingerprint: async () => ({ fingerprint: idleSeq.length ? idleSeq.shift() : 'X' }) }, resolved: { id: 'mock' } })
     const resIdle = await ToolsInteract.observeUntilHandler({ type: 'idle', timeoutMs: 3000, pollIntervalMs: 100, platform: 'android' })
-    console.log('Idle Test:', (resIdle && (resIdle as any).success) ? 'PASS' : 'FAIL')
+    const okIdle = resIdle && (resIdle as any).success && (resIdle as any).telemetry && (resIdle as any).telemetry.matchSource === 'idle-stable'
+    console.log('Idle Test:', okIdle ? 'PASS' : 'FAIL', JSON.stringify((resIdle as any).telemetry || {}, null, 2))
 
   } finally {
     ;(ToolsInteract as any).findElementHandler = origFind
