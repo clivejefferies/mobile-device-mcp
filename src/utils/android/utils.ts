@@ -3,8 +3,51 @@ import { promises as fsPromises, existsSync } from 'fs'
 import path from 'path'
 import { detectJavaHome } from '../java.js'
 import { execCmd } from '../exec.js'
+import { spawnSync } from 'child_process'
 
-export function getAdbCmd() { return process.env.ADB_PATH || 'adb' }
+function findInPath(cmd: string): string | null {
+  try {
+    // prefer command -v for POSIX
+    const res = spawnSync('command', ['-v', cmd], { encoding: 'utf8' })
+    if (res.status === 0 && res.stdout) return res.stdout.trim()
+  } catch { }
+  try {
+    const res = spawnSync('which', [cmd], { encoding: 'utf8' })
+    if (res.status === 0 && res.stdout) return res.stdout.trim()
+  } catch { }
+  return null
+}
+
+export function resolveAdbCmd(): string {
+  // Priority: explicit env ADB_PATH -> ANDROID_SDK_ROOT/platform-tools/adb -> ANDROID_HOME/platform-tools/adb -> ~/Library/Android/sdk/platform-tools/adb -> PATH discovery -> 'adb'
+  if (process.env.ADB_PATH && process.env.ADB_PATH.trim()) return process.env.ADB_PATH
+  const sdkRoot = process.env.ANDROID_SDK_ROOT || process.env.ANDROID_HOME
+  if (sdkRoot) {
+    const candidate = path.join(sdkRoot, 'platform-tools', process.platform === 'win32' ? 'adb.exe' : 'adb')
+    if (existsSync(candidate)) return candidate
+  }
+  // common macOS user SDK path
+  const homeSdk = path.join(process.env.HOME || '', 'Library', 'Android', 'sdk', 'platform-tools', process.platform === 'win32' ? 'adb.exe' : 'adb')
+  if (existsSync(homeSdk)) return homeSdk
+  const found = findInPath('adb')
+  if (found) return found
+  return 'adb'
+}
+
+export function getAdbCmd() { return resolveAdbCmd() }
+
+export function ensureAdbAvailable() {
+  const adb = resolveAdbCmd()
+  try {
+    const res = spawnSync(adb, ['--version'], { encoding: 'utf8' })
+    if (res.status === 0) {
+      return { adbCmd: adb, ok: true, version: (res.stdout || res.stderr || '').trim() }
+    }
+    return { adbCmd: adb, ok: false, error: (res.stderr || res.stdout || '').trim() }
+  } catch (err:any) {
+    return { adbCmd: adb, ok: false, error: String(err) }
+  }
+}
 
 /**
  * Prepare Gradle execution options for building an Android project.
@@ -31,14 +74,50 @@ export async function prepareGradle(projectPath: string): Promise<{ execCmd: str
 
   const detectedJavaHome = await detectJavaHome().catch(() => undefined)
   const env = Object.assign({}, process.env)
+
+  // Ensure child processes can find Android platform-tools (adb, etc.) by
+  // prepending the platform-tools directory to PATH for spawned processes.
+  const adbPath = resolveAdbCmd()
+  let platformToolsDir: string | undefined = undefined
+  try {
+    if (adbPath && adbPath !== 'adb' && existsSync(adbPath)) {
+      platformToolsDir = path.dirname(adbPath)
+    }
+  } catch { /* ignore */ }
+
+  const pathParts: string[] = []
   if (detectedJavaHome) {
     if (env.JAVA_HOME !== detectedJavaHome) {
       env.JAVA_HOME = detectedJavaHome
-      env.PATH = `${path.join(detectedJavaHome, 'bin')}${path.delimiter}${env.PATH || ''}`
     }
+    const javaBin = path.join(detectedJavaHome, 'bin')
+    pathParts.push(javaBin)
     gradleArgs.push(`-Dorg.gradle.java.home=${detectedJavaHome}`)
     gradleArgs.push('--no-daemon')
     env.GRADLE_JAVA_HOME = detectedJavaHome
+  }
+
+  if (platformToolsDir) {
+    // Prepend platform-tools so gradle and child tools find adb without modifying global env
+    if (!env.PATH || !env.PATH.includes(platformToolsDir)) {
+      pathParts.push(platformToolsDir)
+    }
+  } else if (process.env.ANDROID_SDK_ROOT || process.env.ANDROID_HOME) {
+    const sdkRoot = process.env.ANDROID_SDK_ROOT || process.env.ANDROID_HOME || ''
+    const candidate = path.join(sdkRoot, 'platform-tools')
+    if (existsSync(candidate) && (!env.PATH || !env.PATH.includes(candidate))) {
+      pathParts.push(candidate)
+    }
+  } else {
+    // also try common user sdk location
+    const homeSdkTools = path.join(process.env.HOME || '', 'Library', 'Android', 'sdk', 'platform-tools')
+    if (existsSync(homeSdkTools) && (!env.PATH || !env.PATH.includes(homeSdkTools))) {
+      pathParts.push(homeSdkTools)
+    }
+  }
+
+  if (pathParts.length > 0) {
+    env.PATH = `${pathParts.join(path.delimiter)}${path.delimiter}${env.PATH || ''}`
   }
 
   try { delete env.SHELL } catch {}

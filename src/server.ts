@@ -19,6 +19,7 @@ import { ToolsInteract } from './interact/index.js'
 import { ToolsObserve } from './observe/index.js'
 import { AndroidManage } from './manage/index.js'
 import { iOSManage } from './manage/index.js'
+import { ensureAdbAvailable } from './utils/android/utils.js'
 
 
 const server = new Server(
@@ -31,7 +32,18 @@ const server = new Server(
       tools: {}
     }
   }
-)
+);
+
+// Startup healthchecks (non-fatal) — verify adb availability and log chosen command
+(async () => {
+  try {
+    const adbCheck = ensureAdbAvailable()
+    if (adbCheck.ok) console.debug('[startup] adb available:', adbCheck.adbCmd, adbCheck.version)
+    else console.warn('[startup] adb not available or failed to run:', adbCheck.adbCmd, adbCheck.error)
+  } catch (e:any) {
+    console.warn('[startup] error during adb healthcheck:', e?.message || String(e))
+  }
+})()
 
 function wrapResponse<T>(data: T) {
   return {
@@ -487,9 +499,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       }
     }
   ]
-}))
+}));
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
   const { name, arguments: args } = request.params
 
   try {
