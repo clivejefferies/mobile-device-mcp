@@ -282,7 +282,7 @@ export class ToolsInteract {
       baselineLastLine = logsArr.length ? logsArr[logsArr.length - 1] : null
     } catch (err) {
       // non-fatal but surface warning to aid debugging
-      try { console.warn('observeUntil: failed to get baseline logs (non-fatal):', err instanceof Error ? err.message : String(err)) } catch (_) {}
+      try { console.warn('observeUntil: failed to get baseline logs (non-fatal):', err instanceof Error ? err.message : String(err)) } catch { }
     }
 
     
