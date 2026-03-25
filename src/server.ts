@@ -34,7 +34,7 @@ const server = new Server(
   }
 );
 
-import { getSystemStatus } from './tools/system_status/index.js'
+import { getSystemStatus } from './system/index.js'
 
 // Run a quick startup healthcheck (non-fatal) by calling getSystemStatus directly and log a short summary
 getSystemStatus().then(res => {

@@ -7,5 +7,6 @@ See:
 - [mange](manage.md) — build, install and device management tools
 - [observe](observe.md) — logs, screenshots and UI inspection tools
 - [interact](interact.md) — UI interaction tools (tap, swipe, type, wait)
+- [system](system.md) — environment and health checks (get_system_status)
 
 For per-tool deep dives, open the linked files above.

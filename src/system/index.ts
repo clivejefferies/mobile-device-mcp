@@ -26,4 +26,3 @@ export async function getSystemStatus() {
     return { success: false, issues: ['Internal error: ' + (e instanceof Error ? e.message : String(e))] }
   }
 }
-
