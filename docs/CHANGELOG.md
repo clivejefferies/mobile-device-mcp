@@ -2,6 +2,12 @@
 
 All notable changes to the **Mobile Debug MCP** project will be documented in this file.
 
+## [0.20.0]
+- Added `get_system_status` tool and refactored system health checks into `src/system`.
+  - Provides a fast environment healthcheck (ADB availability/version, connected devices, log access, Android env vars, and basic iOS xcrun/simulator checks).
+  - Designed to be fast, non-throwing, and to gate agent actions early. Unit tests added.
+
+
 ## [0.19.2]
 - Added healthcheck improvments
 - Added skills 
