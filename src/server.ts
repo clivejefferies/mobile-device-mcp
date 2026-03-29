@@ -340,34 +340,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       }
     },
     {
-      name: "wait_for_element",
-      description: "Wait until a UI element with matching text appears on screen or timeout is reached.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          platform: {
-            type: "string",
-            enum: ["android", "ios"],
-            description: "Platform to check"
-          },
-          text: {
-            type: "string",
-            description: "Text content of the element to wait for"
-          },
-          timeout: {
-            type: "number",
-            description: "Max wait time in ms (default 10000)",
-            default: 10000
-          },
-          deviceId: {
-            type: "string",
-            description: "Device Serial/UDID. Defaults to connected/booted device."
-          }
-        },
-        required: ["platform", "text"]
-      }
-    },
-    {
       name: "find_element",
       description: "Find a UI element by semantic query (text, content-desc, resource-id, class). Returns best match.",
       inputSchema: {
@@ -674,11 +646,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request: SchemaOutput<typ
       return wrapResponse(res)
     }
 
-    if (name === "wait_for_element") {
-      const { platform, text, timeout, deviceId } = (args || {}) as any
-      const res = await ToolsInteract.waitForElementHandler({ platform, text, timeout, deviceId })
-      return wrapResponse(res)
-    }
 
     if (name === "find_element") {
       const { query, exact = false, timeoutMs = 3000, platform, deviceId } = (args || {}) as any

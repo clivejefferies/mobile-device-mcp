@@ -1,7 +1,6 @@
 // Aggregator entrypoint for unit tests (updated to new test layout)
 import '../observe/unit/logparse.test.ts'
 import '../observe/unit/logstream.test.ts'
-import '../observe/unit/wait_for_element_mock.ts'
 import '../observe/unit/get_screen_fingerprint.test.ts'
 
 import '../manage/unit/install.test.ts'
