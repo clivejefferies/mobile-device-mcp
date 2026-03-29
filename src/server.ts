@@ -340,33 +340,25 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       }
     },
     {
-      name: "wait_for_element",
-      description: "Wait until a UI element with matching text appears on screen or timeout is reached.",
+      name: "wait_for_ui",
+      description: "Wait for a UI/log/screen/idle condition with a stability window before returning success.",
       inputSchema: {
         type: "object",
         properties: {
-          platform: {
-            type: "string",
-            enum: ["android", "ios"],
-            description: "Platform to check"
-          },
-          text: {
-            type: "string",
-            description: "Text content of the element to wait for"
-          },
-          timeout: {
-            type: "number",
-            description: "Max wait time in ms (default 10000)",
-            default: 10000
-          },
-          deviceId: {
-            type: "string",
-            description: "Device Serial/UDID. Defaults to connected/booted device."
-          }
-        },
-        required: ["platform", "text"]
+          type: { type: "string", enum: ["ui","log","screen","idle"], description: "Condition type to observe", default: "ui" },
+          query: { type: "string", description: "Optional query string for ui/log/screen types" },
+          timeoutMs: { type: "number", description: "Timeout in ms to wait for condition (default 30000)", default: 30000 },
+          pollIntervalMs: { type: "number", description: "Polling interval in ms (default 300, clamped to 250-500)", default: 300 },
+          match: { type: "string", enum: ["present","absent"], description: "Match mode for UI checks: 'present' or 'absent' (default 'present')", default: "present" },
+          stability_ms: { type: "number", description: "Stability window in ms that the condition must hold before returning success (default 700)", default: 700 },
+          includeSnapshotOnFailure: { type: "boolean", description: "Whether to include a debug snapshot on timeout (default true)", default: true },
+          platform: { type: "string", enum: ["android","ios"], description: "Optional platform override" },
+          deviceId: { type: "string", description: "Optional device serial/udid" }
+        }
       }
     },
+
+
     {
       name: "find_element",
       description: "Find a UI element by semantic query (text, content-desc, resource-id, class). Returns best match.",
@@ -674,9 +666,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request: SchemaOutput<typ
       return wrapResponse(res)
     }
 
-    if (name === "wait_for_element") {
-      const { platform, text, timeout, deviceId } = (args || {}) as any
-      const res = await ToolsInteract.waitForElementHandler({ platform, text, timeout, deviceId })
+
+    if (name === "wait_for_ui") {
+      const { type = 'ui', query, timeoutMs = 30000, pollIntervalMs = 300, includeSnapshotOnFailure = true, match = 'present', stability_ms = 700, observationDelayMs = 0, platform, deviceId } = (args || {}) as any
+      const res = await ToolsInteract.waitForUIHandler({ type, query, timeoutMs, pollIntervalMs, includeSnapshotOnFailure, match, stability_ms, observationDelayMs, platform, deviceId })
       return wrapResponse(res)
     }
 

@@ -2,6 +2,12 @@
 
 All notable changes to the **Mobile Debug MCP** project will be documented in this file.
 
+## [0.21.1]
+- Removed wait_for_element and renamed observe_until to wait_for_ui (obsolete references removed)
+
+## [0.21.0]
+- Added `wait_for_ui` as a tool for agents to wait for things like API requests
+
 ## [0.20.1]
 - Fixes gradle home issue for android
 
@@ -21,7 +27,7 @@ All notable changes to the **Mobile Debug MCP** project will be documented in th
 
 ## [0.19.0]
 
-- Added `observe_until` interaction tool: waits for UI, log, screen fingerprint or idle conditions with configurable polling and timeout. Returns rich details on match (element info, log line, new fingerprint).
+- Added `wait_for_ui` interaction tool: waits for UI, log, screen fingerprint or idle conditions with configurable polling and timeout. Returns rich details on match (element info, log line, new fingerprint).
 
 
 ## [0.18.0]

@@ -32,6 +32,12 @@ export async function resolveTargetDevice(opts: ResolveOptions): Promise<DeviceI
   const { platform, appId, prefer, deviceId } = opts
   const devices = await listDevices(platform, appId)
 
+  // During unit tests (no adb/xcrun available), provide a lightweight mock device so
+  // the observe/interact unit tests can run without real devices.
+  if ((!devices || devices.length === 0) && (process.env.NODE_ENV === 'test' || process.env.MCP_TEST_MOCK_DEVICES === '1')) {
+    return { id: 'mock', platform: platform || 'android', osVersion: '12', model: 'Pixel', simulator: true } as DeviceInfo
+  }
+
   if (deviceId) {
     const found = devices.find(d => d.id === deviceId)
     if (!found) throw new Error(`Device '${deviceId}' not found for platform ${platform}`)

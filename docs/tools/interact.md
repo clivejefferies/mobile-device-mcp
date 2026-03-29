@@ -2,26 +2,6 @@
 
 Tools that perform UI interactions: tap, swipe, type_text, press_back, and waiting for elements.
 
-## wait_for_element
-Wait until a UI element with matching text appears on screen or timeout is reached.
-
-Input:
-
-```
-{ "platform": "android", "text": "Home", "timeout": 5000, "deviceId": "emulator-5554" }
-```
-
-Response:
-
-```
-{ "device": { "platform": "android", "id": "emulator-5554" }, "found": true, "element": { "text": "Home", "resourceId": "com.example:id/home" } }
-```
-
-Notes:
-- Polls get_ui_tree until timeout or element found. Returns an `error` field if system failures occur.
-
----
-
 ## tap / swipe / type_text / press_back
 
 Tap input example:
@@ -153,7 +133,7 @@ Notes:
 
 ---
 
-## observe_until
+## wait_for_ui
 
 Purpose:
 - Wait for a condition to occur on the device: UI element appearance, a log line, a screen fingerprint change, or an idle/stable screen state.
@@ -164,7 +144,7 @@ Supported types and behavior:
 - screen: Compares screen fingerprints (visual checks) against an initial baseline and returns when fingerprint changes. If `query` is provided it will attempt a `find_element` on the new screen to validate the expected content.
 - idle: Waits until the screen fingerprint remains stable for a short stability window (default 1000ms).
 
-Input (ToolsInteract.observeUntilHandler):
+Input (ToolsInteract.waitForUIHandler):
 ```
 { "type": "ui|log|screen|idle", "query": "optional string", "timeoutMs": 5000, "pollIntervalMs": 200, "platform": "android|ios", "deviceId": "optional device id" }
 ```
@@ -190,16 +170,16 @@ Notes & tips:
 - For UI-sensitive flows prefer type='ui' rather than relying solely on visual fingerprint changes, as some UI updates don't alter the fingerprint.
 
 Tests:
-- Unit: `test/interact/unit/observe_until.test.ts`
-- Device runner: `test/interact/device/observe_until_device.ts` (requires devices/emulators and adb/xcrun in PATH)
+- Unit: `test/interact/unit/wait_for_ui.test.ts`
+- Device runner: `test/interact/device/wait_for_ui_device.ts` (requires devices/emulators and adb/xcrun in PATH)
 
 Example:
 ```
 // Wait up to 5s for a button labeled "Generate Session" on Android
-ToolsInteract.observeUntilHandler({ type: 'ui', query: 'Generate Session', timeoutMs: 5000, platform: 'android' })
+ToolsInteract.waitForUIHandler({ type: 'ui', query: 'Generate Session', timeoutMs: 5000, platform: 'android' })
 ```
 
 Troubleshooting:
-- If observe_until(log) never matches, ensure log streaming is started for the target package and baseline logs captured correctly.
-- If observe_until(screen) times out despite visible UI change, try type='ui' to validate content-level changes.
+- If wait_for_ui(log) never matches, ensure log streaming is started for the target package and baseline logs captured correctly.
+- If wait_for_ui(screen) times out despite visible UI change, try type='ui' to validate content-level changes.
 
