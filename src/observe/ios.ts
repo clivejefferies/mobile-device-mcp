@@ -165,7 +165,7 @@ export class iOSObserve {
         let lvl = 'INFO'
         const lvlMatch = line.match(/\b(Debug|Info|Default|Error|Fault|Warning)\b/i)
         if (lvlMatch) {
-          const map: any = { 'debug': 'DEBUG', 'info': 'INFO', 'default': 'DEBUG', 'error': 'ERROR', 'fault': 'ERROR', 'warning': 'WARN' }
+          const map: Record<string, string> = { 'debug': 'DEBUG', 'info': 'INFO', 'default': 'DEBUG', 'error': 'ERROR', 'fault': 'ERROR', 'warning': 'WARN' }
           lvl = map[(lvlMatch[1] || '').toLowerCase()] || 'INFO'
         }
 
@@ -179,9 +179,29 @@ export class iOSObserve {
         const pidMatch = line.match(/\[(\d+):\d+\]/)
         if (pidMatch) pidNum = Number(pidMatch[1])
 
-        // message: rest after last colon
-        const msgParts = line.split(':')
-        const message = msgParts.length > 1 ? msgParts.slice(-1).join(':').trim() : line
+        // message: extract robustly after the subsystem/category token when available
+        let message = line
+        if (tagMatch) {
+          // tagMatch[0] includes the delimiter (e.g. " MySubsystem: ") — use it to find the message start
+          const marker = tagMatch[0]
+          const idx = line.indexOf(marker)
+          if (idx !== -1) {
+            message = line.slice(idx + marker.length).trim()
+          } else {
+            // fallback: try to trim off common prefixes (timestamp, pid, level) and keep the rest
+            const afterPidMatch = line.match(/\]\s+/)
+            if (afterPidMatch) {
+              const afterPidIdx = line.indexOf(afterPidMatch[0]) + afterPidMatch[0].length
+              message = line.slice(afterPidIdx).trim()
+            } else {
+              // remove leading level tokens like <Debug> and keep remainder
+              message = line.replace(/^.*?<.*?>\s*/,'').trim()
+            }
+          }
+        } else {
+          // No tag found — strip obvious prefixes and keep remainder (preserve colons in message)
+          message = line.replace(/^.*?<.*?>\s*/,'').trim()
+        }
 
         return { timestamp: ts, level: lvl, tag: tagVal, pid: pidNum, message }
       })

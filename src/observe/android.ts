@@ -108,7 +108,10 @@ export class AndroidObserve {
           const pidOut = await execAdb(['shell', 'pidof', appId], deviceId).catch(() => '')
           const pidTrim = (pidOut || '').trim()
           if (pidTrim) pidArg = pidTrim.split('\n')[0]
-        } catch { }
+        } catch (err) {
+          // Log a warning so failures to detect PID are visible during debugging
+          try { console.warn(`getLogs: pid detection failed for appId=${appId}:`, err instanceof Error ? err.message : String(err)) } catch { }
+        }
       }
 
       const args = ['logcat', '-d', '-v', 'threadtime']

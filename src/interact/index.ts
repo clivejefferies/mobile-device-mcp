@@ -223,6 +223,16 @@ export class ToolsInteract {
     return await ToolsInteract.waitForUICore({ type, query, timeoutMs, pollIntervalMs, includeSnapshotOnFailure, match, stability_ms, observationDelayMs, platform, deviceId })
   }
 
+  // Helper: normalize various log objects into plain message strings for comparison
+  private static _logsToMessages(logsArr: any[]): string[] {
+    if (!Array.isArray(logsArr)) return []
+    return logsArr.map((l: any) => {
+      if (typeof l === 'string') return l
+      if (l && (l.message || l.msg)) return l.message || l.msg
+      try { return JSON.stringify(l) } catch { return String(l) }
+    })
+  }
+
   static async waitForScreenChangeHandler({ platform, previousFingerprint, timeoutMs = 5000, pollIntervalMs = 300, deviceId }: { platform?: 'android' | 'ios', previousFingerprint: string, timeoutMs?: number, pollIntervalMs?: number, deviceId?: string }) {
     const start = Date.now()
     let lastFingerprint: string | null = null
@@ -280,7 +290,7 @@ export class ToolsInteract {
       if (gl) {
         const logsArr = Array.isArray((gl as any).logs) ? (gl as any).logs : []
         // Normalize to last message string for baseline comparison
-        const msgs = logsArr.map((l: any) => (typeof l === 'string') ? l : (l && l.message ? l.message : JSON.stringify(l)))
+        const msgs = ToolsInteract._logsToMessages(logsArr)
         baselineLastLine = msgs.length ? msgs[msgs.length - 1] : null
       }
     } catch (err) {
@@ -351,7 +361,7 @@ export class ToolsInteract {
             const gl = await ToolsObserve.getLogsHandler({ platform, deviceId, lines: 200 }) as any
             const logsArr = Array.isArray(gl && gl.logs) ? gl.logs : []
             // Normalize to messages for comparison
-            const msgs = logsArr.map((l: any) => (typeof l === 'string') ? l : (l && l.message ? l.message : JSON.stringify(l)))
+            const msgs = ToolsInteract._logsToMessages(logsArr)
             let startIndex = 0
             if (baselineLastLine) {
               const idx = msgs.lastIndexOf(baselineLastLine)

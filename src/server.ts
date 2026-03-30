@@ -614,7 +614,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request: SchemaOutput<typ
       const filtered = !!(pid || tag || level || contains || since_seconds || appId)
       return {
         content: [
-          { type: 'text', text: JSON.stringify({ device: res.device, result: { count: res.logCount, filtered } }, null, 2) },
+          { type: 'text', text: JSON.stringify({ device: res.device, result: { count: res.logCount, filtered, crashLines: (res.crashLines || []) } }, null, 2) },
           { type: 'text', text: JSON.stringify({ logs: res.logs }, null, 2) }
         ]
       }

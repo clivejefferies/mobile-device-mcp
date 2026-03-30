@@ -107,7 +107,7 @@ export class ToolsObserve {
 
     // Parallel fetches for performance: screenshot, current screen, fingerprint, ui tree, and log stream/get logs
     const sid = sessionId || 'default'
-    const tasks = {
+    const tasks: Record<string, Promise<any>> = {
       screenshot: ToolsObserve.captureScreenshotHandler({ platform, deviceId }),
       currentScreen: (!platform || platform === 'android') ? ToolsObserve.getCurrentScreenHandler({ deviceId }) : Promise.resolve(null),
       fingerprint: ToolsObserve.getScreenFingerprintHandler({ platform, deviceId }),
