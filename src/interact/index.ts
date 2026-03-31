@@ -32,6 +32,12 @@ interface UiElement {
 
 export class ToolsInteract {
 
+  private static _normalize(s: any): string {
+    if (s === null || s === undefined) return ''
+    try { return String(s).toLowerCase().trim() } catch { return '' }
+  }
+
+
   private static async getInteractionService(platform?: 'android' | 'ios', deviceId?: string) {
     const effectivePlatform = platform || 'android'
     const resolved = await resolveTargetDevice({ platform: effectivePlatform as 'android' | 'ios', deviceId })
@@ -68,7 +74,7 @@ export class ToolsInteract {
     // Try to use observe layer to fetch the current UI tree and perform a fast semantic search
     const start = Date.now()
     const deadline = start + timeoutMs
-    const normalize = (s: any) => (s === null || s === undefined) ? '' : String(s).toLowerCase().trim()
+    const normalize = ToolsInteract._normalize
 
     const q = normalize(query)
     if (!q) return { found: false, error: 'Empty query' }
@@ -221,16 +227,20 @@ export class ToolsInteract {
   static async waitForUIHandler({ selector, condition = 'exists', timeout_ms = 60000, poll_interval_ms = 300, match, retry = { max_attempts: 1, backoff_ms: 0 }, platform, deviceId }: { selector?: { text?: string, resource_id?: string, accessibility_id?: string, contains?: boolean }, condition?: 'exists'|'not_exists'|'visible'|'clickable', timeout_ms?: number, poll_interval_ms?: number, match?: { index?: number }, retry?: { max_attempts?: number, backoff_ms?: number }, platform?: 'android'|'ios', deviceId?: string }) {
     const overallStart = Date.now()
 
-    // Validate selector: require at least one of text, resource_id, or accessibility_id
-    if (!selector || (typeof selector === 'object' && Object.keys(selector).length === 0)) {
-      return { status: 'timeout', error: { code: 'INVALID_SELECTOR', message: 'At least one selector field must be provided (text, resource_id, or accessibility_id)' }, metrics: { latency_ms: Date.now() - overallStart, poll_count: 0, attempts: 0 } }
-    }
+    // Validate selector: require at least one non-empty field (text, resource_id, or accessibility_id)
+    const hasText = typeof selector?.text === 'string' && selector.text.trim().length > 0;
+    const hasResId = typeof selector?.resource_id === 'string' && selector.resource_id.trim().length > 0;
+    const hasAccId = typeof selector?.accessibility_id === 'string' && selector.accessibility_id.trim().length > 0;
 
-    const hasText = selector && typeof (selector as any).text === 'string' && (selector as any).text.trim().length > 0
-    const hasResId = selector && typeof (selector as any).resource_id === 'string' && (selector as any).resource_id.trim().length > 0
-    const hasAccId = selector && typeof (selector as any).accessibility_id === 'string' && (selector as any).accessibility_id.trim().length > 0
     if (!hasText && !hasResId && !hasAccId) {
-      return { status: 'timeout', error: { code: 'INVALID_SELECTOR', message: 'Selector must include at least one of: text, resource_id, accessibility_id' }, metrics: { latency_ms: Date.now() - overallStart, poll_count: 0, attempts: 0 } }
+      return {
+        status: 'timeout',
+        error: {
+          code: 'INVALID_SELECTOR',
+          message: 'Selector must include at least one non-empty field: text, resource_id, or accessibility_id'
+        },
+        metrics: { latency_ms: Date.now() - overallStart, poll_count: 0, attempts: 0 }
+      };
     }
 
     // Validate condition
@@ -251,11 +261,11 @@ export class ToolsInteract {
     let totalPollCount = 0
 
     // Precompute normalized selector values and helpers (constant across polls)
-    const normalize = (s: any) => (s === null || s === undefined) ? '' : String(s).toLowerCase().trim()
-    const containsFlag = !!selector.contains
-    const selText = normalize((selector as any).text)
-    const selRid = normalize((selector as any).resource_id)
-    const selAid = normalize((selector as any).accessibility_id)
+    const normalize = ToolsInteract._normalize
+    const containsFlag = !!selector?.contains
+    const selText = normalize(selector?.text)
+    const selRid = normalize(selector?.resource_id)
+    const selAid = normalize(selector?.accessibility_id)
 
     try {
       while (attempts < maxAttempts) {
@@ -310,26 +320,27 @@ export class ToolsInteract {
 
             // Evaluate condition
             const matchedCount = matches.length
-            const pickIndexProvided = (match && typeof (match as any).index === 'number')
-            const pickIndex: number = pickIndexProvided ? Number((match as any).index) : 0
+            const pickIndex = (typeof match?.index === 'number') ? match!.index as number : undefined
             let chosen: { el: any, idx: number } | null = null
-            if (matches.length === 0) {
-              chosen = null
-            } else if (pickIndexProvided) {
-              // If a specific index is requested but out of bounds, treat as not matched for this poll (deterministic)
-              if (pickIndex >= 0 && pickIndex < matches.length) chosen = matches[pickIndex]
-              else chosen = null
+            if (matches.length > 0) {
+              if (pickIndex !== undefined) {
+                // If a specific index is requested but out of bounds, treat as not matched for this poll (deterministic)
+                if (pickIndex >= 0 && pickIndex < matches.length) chosen = matches[pickIndex]
+                else chosen = null
+              } else {
+                chosen = matches[0]
+              }
             } else {
-              chosen = matches[0]
+              chosen = null
             }
 
             let conditionMet = false
             if (condition === 'exists') {
               // when an index is specified, existence requires that specific index be present
-              conditionMet = pickIndexProvided ? (chosen !== null) : (matchedCount >= 1)
+              conditionMet = (pickIndex !== undefined) ? (chosen !== null) : (matchedCount >= 1)
             } else if (condition === 'not_exists') {
               // when an index is specified, not_exists is true if that index is absent
-              conditionMet = pickIndexProvided ? (chosen === null) : (matchedCount === 0)
+              conditionMet = (pickIndex !== undefined) ? (chosen === null) : (matchedCount === 0)
             } else if (condition === 'visible') {
               if (chosen) {
                 const b = chosen.el.bounds
