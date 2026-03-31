@@ -688,7 +688,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request: SchemaOutput<typ
 
 
     if (name === "wait_for_ui") {
-      const { selector, condition = 'exists', timeout_ms = 5000, poll_interval_ms = 300, match, retry, platform, deviceId } = (args || {}) as any
+      const { selector, condition = 'exists', timeout_ms = 60000, poll_interval_ms = 300, match, retry, platform, deviceId } = (args || {}) as any
       const res = await ToolsInteract.waitForUIHandler({ selector, condition, timeout_ms, poll_interval_ms, match, retry, platform, deviceId })
       return wrapResponse(res)
     }
