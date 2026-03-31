@@ -32,6 +32,12 @@ interface UiElement {
 
 export class ToolsInteract {
 
+  private static _normalize(s: any): string {
+    if (s === null || s === undefined) return ''
+    try { return String(s).toLowerCase().trim() } catch { return '' }
+  }
+
+
   private static async getInteractionService(platform?: 'android' | 'ios', deviceId?: string) {
     const effectivePlatform = platform || 'android'
     const resolved = await resolveTargetDevice({ platform: effectivePlatform as 'android' | 'ios', deviceId })
@@ -68,7 +74,7 @@ export class ToolsInteract {
     // Try to use observe layer to fetch the current UI tree and perform a fast semantic search
     const start = Date.now()
     const deadline = start + timeoutMs
-    const normalize = (s: any) => (s === null || s === undefined) ? '' : String(s).toLowerCase().trim()
+    const normalize = ToolsInteract._normalize
 
     const q = normalize(query)
     if (!q) return { found: false, error: 'Empty query' }
@@ -221,9 +227,20 @@ export class ToolsInteract {
   static async waitForUIHandler({ selector, condition = 'exists', timeout_ms = 60000, poll_interval_ms = 300, match, retry = { max_attempts: 1, backoff_ms: 0 }, platform, deviceId }: { selector?: { text?: string, resource_id?: string, accessibility_id?: string, contains?: boolean }, condition?: 'exists'|'not_exists'|'visible'|'clickable', timeout_ms?: number, poll_interval_ms?: number, match?: { index?: number }, retry?: { max_attempts?: number, backoff_ms?: number }, platform?: 'android'|'ios', deviceId?: string }) {
     const overallStart = Date.now()
 
-    // Validate selector
-    if (!selector || (typeof selector === 'object' && Object.keys(selector).length === 0)) {
-      return { status: 'timeout', error: { code: 'INVALID_SELECTOR', message: 'At least one selector field must be provided' }, metrics: { latency_ms: Date.now() - overallStart, poll_count: 0, attempts: 0 } }
+    // Validate selector: require at least one non-empty field (text, resource_id, or accessibility_id)
+    const hasText = typeof selector?.text === 'string' && selector.text.trim().length > 0;
+    const hasResId = typeof selector?.resource_id === 'string' && selector.resource_id.trim().length > 0;
+    const hasAccId = typeof selector?.accessibility_id === 'string' && selector.accessibility_id.trim().length > 0;
+
+    if (!hasText && !hasResId && !hasAccId) {
+      return {
+        status: 'timeout',
+        error: {
+          code: 'INVALID_SELECTOR',
+          message: 'Selector must include at least one non-empty field: text, resource_id, or accessibility_id'
+        },
+        metrics: { latency_ms: Date.now() - overallStart, poll_count: 0, attempts: 0 }
+      };
     }
 
     // Validate condition
@@ -243,6 +260,13 @@ export class ToolsInteract {
     let attempts = 0
     let totalPollCount = 0
 
+    // Precompute normalized selector values and helpers (constant across polls)
+    const normalize = ToolsInteract._normalize
+    const containsFlag = !!selector?.contains
+    const selText = normalize(selector?.text)
+    const selRid = normalize(selector?.resource_id)
+    const selAid = normalize(selector?.accessibility_id)
+
     try {
       while (attempts < maxAttempts) {
         attempts++
@@ -255,14 +279,7 @@ export class ToolsInteract {
             const tree = await ToolsObserve.getUITreeHandler({ platform, deviceId }) as any
             const elements = (tree && Array.isArray(tree.elements)) ? tree.elements as any[] : []
 
-            // Normalize selector checks
-            const containsFlag = !!selector.contains
             const matches: { el: any, idx: number }[] = []
-
-            const normalize = (s: any) => (s === null || s === undefined) ? '' : String(s).toLowerCase().trim()
-            const selText = normalize(selector.text)
-            const selRid = normalize(selector.resource_id)
-            const selAid = normalize(selector.accessibility_id)
 
             for (let i = 0; i < elements.length; i++) {
               const el = elements[i]
@@ -303,13 +320,28 @@ export class ToolsInteract {
 
             // Evaluate condition
             const matchedCount = matches.length
-            const pickIndex = (match && typeof match.index === 'number') ? match.index : 0
-            const chosen = matches.length > 0 && matches[pickIndex] ? matches[pickIndex] : (matches.length > 0 ? matches[0] : null)
+            const pickIndex = (typeof match?.index === 'number') ? match!.index as number : undefined
+            let chosen: { el: any, idx: number } | null = null
+            if (matches.length > 0) {
+              if (pickIndex !== undefined) {
+                // If a specific index is requested but out of bounds, treat as not matched for this poll (deterministic)
+                if (pickIndex >= 0 && pickIndex < matches.length) chosen = matches[pickIndex]
+                else chosen = null
+              } else {
+                chosen = matches[0]
+              }
+            } else {
+              chosen = null
+            }
 
             let conditionMet = false
-            if (condition === 'exists') conditionMet = matchedCount >= 1
-            else if (condition === 'not_exists') conditionMet = matchedCount === 0
-            else if (condition === 'visible') {
+            if (condition === 'exists') {
+              // when an index is specified, existence requires that specific index be present
+              conditionMet = (pickIndex !== undefined) ? (chosen !== null) : (matchedCount >= 1)
+            } else if (condition === 'not_exists') {
+              // when an index is specified, not_exists is true if that index is absent
+              conditionMet = (pickIndex !== undefined) ? (chosen === null) : (matchedCount === 0)
+            } else if (condition === 'visible') {
               if (chosen) {
                 const b = chosen.el.bounds
                 const visibleFlag = !!chosen.el.visible && Array.isArray(b) && b.length >= 4 && (b[2] > b[0] && b[3] > b[1])
@@ -370,8 +402,6 @@ export class ToolsInteract {
         }
       }
 
-      // Should not reach here
-      return { status: 'timeout', error: { code: 'ELEMENT_NOT_FOUND', message: 'Condition not satisfied' }, metrics: { latency_ms: Date.now() - overallStart, poll_count: totalPollCount, attempts } }
     } catch (err) {
       const elapsed = Date.now() - overallStart
       return { status: 'timeout', error: { code: 'INTERNAL_ERROR', message: err instanceof Error ? err.message : String(err) }, metrics: { latency_ms: elapsed, poll_count: totalPollCount, attempts } }
