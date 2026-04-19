@@ -1,5 +1,5 @@
-import { ToolsInteract } from '../../../../src/interact/index.js'
-import * as Observe from '../../../../src/observe/index.js'
+import { ToolsInteract } from '../../../src/interact/index.js'
+import * as Observe from '../../../src/observe/index.js'
 
 async function run() {
   console.log('Unit: wait_for_ui stability behavior')

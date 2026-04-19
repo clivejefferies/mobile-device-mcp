@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { detectJavaHome } from '../../src/utils/java.js'
+import { detectJavaHome } from '../../../src/utils/java.js'
 
 async function run() {
   // Create a temporary fake JDK that reports Java 17

@@ -1,4 +1,4 @@
-import { ToolsObserve } from '../../src/observe/index.js'
+import { ToolsObserve } from '../../../src/observe/index.js'
 import minimist from 'minimist'
 
 async function main() {

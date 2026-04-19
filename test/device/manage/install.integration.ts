@@ -1,13 +1,18 @@
 #!/usr/bin/env node
 // Integration runner: calls existing run-install-android.ts or run-install-ios.ts
-// Usage: npx tsx test/integration/install.integration.ts /path/to/project [deviceId]
+// Usage: npx tsx test/device/manage/install.integration.ts /path/to/project [deviceId]
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 
 const args = process.argv.slice(2)
 if (args.length < 1) {
-  console.error('Usage: npx tsx test/integration/install.integration.ts /path/to/project [deviceId]')
+  if (process.env.DEVICE_TEST_RUNNER === '1') {
+    console.log('Skipping install integration test: no project path provided')
+    process.exit(0)
+  }
+
+  console.error('Usage: npx tsx test/device/manage/install.integration.ts /path/to/project [deviceId]')
   process.exit(2)
 }
 const project = args[0]
@@ -29,9 +34,9 @@ function isIosDir(p: string) {
 
 let runner: string | undefined
 if (isAndroidDir(project)) {
-  runner = path.join(process.cwd(), 'test', 'integration', 'run-install-android.ts')
+  runner = path.join(process.cwd(), 'test', 'device', 'manage', 'run-install-android.ts')
 } else if (isIosDir(project)) {
-  runner = path.join(process.cwd(), 'test', 'integration', 'run-install-ios.ts')
+  runner = path.join(process.cwd(), 'test', 'device', 'manage', 'run-install-ios.ts')
 } else {
   console.error('Cannot determine platform for project:', project)
   process.exit(3)
@@ -39,7 +44,7 @@ if (isAndroidDir(project)) {
 
 if (!runner) process.exit(4)
 
-const proc = spawn('node', [runner, project, ...(deviceId ? [deviceId] : [])], { stdio: ['ignore', 'pipe', 'inherit'] })
+const proc = spawn('tsx', [runner, project, ...(deviceId ? [deviceId] : [])], { stdio: ['ignore', 'pipe', 'inherit'] })
 let stdout = ''
 proc.stdout?.on('data', (c) => { stdout += c.toString() })
 proc.on('close', (code) => {

@@ -1,9 +1,9 @@
 import assert from 'assert'
 import child_process from 'child_process'
 
-import * as androidUtils from '../../src/utils/android/utils.js'
-import * as iosUtils from '../../src/utils/ios/utils.js'
-import * as systemStatus from '../../src/system/index.js'
+import * as androidUtils from '../../../src/utils/android/utils.js'
+import * as iosUtils from '../../../src/utils/ios/utils.js'
+import * as systemStatus from '../../../src/system/index.js'
 
 const origExecSync = child_process.execSync
 const origEnsure = (androidUtils as any).ensureAdbAvailable

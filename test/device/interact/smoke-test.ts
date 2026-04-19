@@ -1,6 +1,6 @@
-import { AndroidObserve, iOSObserve } from "../../src/observe/index.js";
-import { AndroidInteract } from "../../src/interact/index.js";
-import { iOSInteract } from "../../src/interact/index.js";
+import { AndroidObserve, iOSObserve } from "../../../src/observe/index.js";
+import { AndroidInteract } from "../../../src/interact/index.js";
+import { iOSInteract } from "../../../src/interact/index.js";
 import fs from "fs/promises";
 
 const androidObserve = new AndroidObserve();
@@ -14,7 +14,7 @@ async function main() {
   const appId = args[1];
 
   if ((platform !== "android" && platform !== "ios") || !appId) {
-    console.error("Usage: npx tsx test/smoke-test.ts <android|ios> <appId>");
+    console.error("Usage: npx tsx test/device/interact/smoke-test.ts <android|ios> <appId>");
     process.exit(1);
   }
 

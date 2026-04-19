@@ -1,9 +1,9 @@
 import assert from 'assert'
-import { ensureAdbAvailable } from '../../src/utils/android/utils.js'
-import { getXcrunCmd } from '../../src/utils/ios/utils.js'
+import { ensureAdbAvailable } from '../../../src/utils/android/utils.js'
+import { getXcrunCmd } from '../../../src/utils/ios/utils.js'
 
 // We import the server handler module to access the internal get_system_status implementation.
-import * as server from '../../src/server.js'
+import * as server from '../../../src/server.js'
 
 // Small helper to call the tool handler similarly to how the MCP transport would.
 async function callGetSystemStatus() {
@@ -14,7 +14,7 @@ async function callGetSystemStatus() {
     // fallback: require the module and call the exported server instance's request handler
     // The server code registers the handler directly; we will emulate by requiring compiled code in dist if available.
     try {
-      const dist = await import('../../dist/server.js')
+      const dist = await import('../../../dist/server.js')
       // Try to execute by sending a call via the server instance if exported
       if (dist && dist.server && typeof dist.server._handleCall === 'function') {
         return dist.server._handleCall(req)

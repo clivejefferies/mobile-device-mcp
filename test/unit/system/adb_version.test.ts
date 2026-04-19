@@ -1,6 +1,6 @@
 import assert from 'assert'
-import * as androidUtils from '../../src/utils/android/utils.js'
-import * as systemStatus from '../../src/system/index.js'
+import * as androidUtils from '../../../src/utils/android/utils.js'
+import * as systemStatus from '../../../src/system/index.js'
 
 const origEnsure = (androidUtils as any).ensureAdbAvailable
 
