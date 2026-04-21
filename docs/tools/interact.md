@@ -192,6 +192,7 @@ Input:
   "condition": "clickable",
   "timeout_ms": 5000,
   "poll_interval_ms": 300,
+  "match": { "index": 0 },
   "retry": { "max_attempts": 1, "backoff_ms": 0 },
   "platform": "android",
   "deviceId": "emulator-5554"

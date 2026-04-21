@@ -11,7 +11,11 @@ async function run() {
   ;(ToolsInteract as any)._resetResolvedUiElementsForTests()
 
   try {
-    ;(Observe as any).ToolsObserve.getScreenFingerprintHandler = async () => ({ fingerprint: 'fp_mock' })
+    let fingerprintCalls = 0
+    ;(Observe as any).ToolsObserve.getScreenFingerprintHandler = async () => {
+      fingerprintCalls++
+      return { fingerprint: 'fp_mock' }
+    }
 
     ;(Observe as any).ToolsObserve.getUITreeHandler = async () => ({
       device: { platform: 'android', id: 'mock-device' },
@@ -160,9 +164,12 @@ async function run() {
     }
 
     assert.ok(oldestElementId, 'Oldest element ID should be captured')
+    const fingerprintCallsBeforeEvictedTap = fingerprintCalls
     const evictedResult = await ToolsInteract.tapElementHandler({ elementId: oldestElementId as string })
     assert.strictEqual(evictedResult.success, false)
     assert.strictEqual(evictedResult.failure_code, 'STALE_REFERENCE')
+    assert.strictEqual(evictedResult.ui_fingerprint_before, null)
+    assert.strictEqual(fingerprintCalls, fingerprintCallsBeforeEvictedTap)
 
     console.log('tap_element unit tests passed')
   } finally {

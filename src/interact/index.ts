@@ -5,6 +5,7 @@ export { AndroidInteract, iOSInteract };
 
 import { resolveTargetDevice } from '../utils/resolve-device.js'
 import { ToolsObserve } from '../observe/index.js'
+import { nextActionId } from '../server/common.js'
 import type {
   ActionFailureCode,
   ActionTargetResolved,
@@ -49,7 +50,6 @@ interface ResolvedUiElementContext {
 export class ToolsInteract {
   private static readonly _maxResolvedUiElements = 256
   private static _resolvedUiElements = new Map<string, ResolvedUiElementContext>()
-  private static _actionCounter = 0
 
   private static _normalize(s: any): string {
     if (s === null || s === undefined) return ''
@@ -117,11 +117,6 @@ export class ToolsInteract {
       if (!oldestElementId) break
       ToolsInteract._resolvedUiElements.delete(oldestElementId)
     }
-  }
-
-  private static _nextActionId(actionType: string, timestamp: number): string {
-    ToolsInteract._actionCounter += 1
-    return `${actionType}_${timestamp}_${ToolsInteract._actionCounter}`
   }
 
   private static async _captureFingerprint(platform: 'android' | 'ios', deviceId?: string): Promise<string | null> {
@@ -261,12 +256,11 @@ export class ToolsInteract {
   static async tapElementHandler({ elementId }: { elementId: string }): Promise<TapElementResponse> {
     const timestamp = Date.now()
     const actionType = 'tap_element'
-    const actionId = ToolsInteract._nextActionId(actionType, timestamp)
+    const actionId = nextActionId(actionType, timestamp)
     const selector = { elementId }
     const resolved = ToolsInteract._resolvedUiElements.get(elementId)
     if (!resolved) {
-      const fingerprintBefore = await ToolsInteract._captureFingerprint('android')
-      return ToolsInteract._actionFailure(actionId, timestamp, actionType, selector, null, 'STALE_REFERENCE', true, fingerprintBefore)
+      return ToolsInteract._actionFailure(actionId, timestamp, actionType, selector, null, 'STALE_REFERENCE', true, null)
     }
 
     const fingerprintBefore = await ToolsInteract._captureFingerprint(resolved.platform, resolved.deviceId)
