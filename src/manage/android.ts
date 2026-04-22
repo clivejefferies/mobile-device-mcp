@@ -8,6 +8,10 @@ import { detectJavaHome } from '../utils/java.js'
 import { InstallAppResponse, StartAppResponse, TerminateAppResponse, RestartAppResponse, ResetAppDataResponse } from '../types.js'
 
 export class AndroidManage {
+  private isTestOnlyInstallFailure(output: string | undefined): boolean {
+    return typeof output === 'string' && output.includes('INSTALL_FAILED_TEST_ONLY')
+  }
+
   async build(projectPath: string, _variant?: string): Promise<{ artifactPath: string, output?: string } | { error: string }> {
     void _variant
     try {
@@ -92,6 +96,14 @@ export class AndroidManage {
         if (res.code === 0) {
           return { device: deviceInfo, installed: true, output: res.stdout }
         }
+
+        const installOutput = `${res.stdout}\n${res.stderr}`.trim()
+        if (this.isTestOnlyInstallFailure(installOutput)) {
+          const retryRes = await spawnAdb(['install', '-r', '-t', apkToInstall], deviceId)
+          if (retryRes.code === 0) {
+            return { device: deviceInfo, installed: true, output: retryRes.stdout }
+          }
+        }
       } catch (e) {
         console.debug('[android-run] adb install failed, attempting push+pm fallback:', e instanceof Error ? e.message : String(e))
       }
@@ -99,9 +111,21 @@ export class AndroidManage {
       const basename = path.basename(apkToInstall)
       const remotePath = `/data/local/tmp/${basename}`
       await execAdb(['push', apkToInstall, remotePath], deviceId)
-      const pmOut = await execAdb(['shell', 'pm', 'install', '-r', remotePath], deviceId)
-      try { await execAdb(['shell', 'rm', remotePath], deviceId) } catch {}
-      return { device: deviceInfo, installed: true, output: pmOut }
+      let finalPmRes = await spawnAdb(['shell', 'pm', 'install', '-r', remotePath], deviceId)
+      try {
+        if (finalPmRes.code === 0) {
+          return { device: deviceInfo, installed: true, output: finalPmRes.stdout }
+        }
+        if (this.isTestOnlyInstallFailure(`${finalPmRes.stdout}\n${finalPmRes.stderr}`)) {
+          finalPmRes = await spawnAdb(['shell', 'pm', 'install', '-r', '-t', remotePath], deviceId)
+          if (finalPmRes.code === 0) {
+            return { device: deviceInfo, installed: true, output: finalPmRes.stdout }
+          }
+        }
+        throw new Error(finalPmRes.stderr || finalPmRes.stdout || 'pm install failed')
+      } finally {
+        try { await execAdb(['shell', 'rm', remotePath], deviceId) } catch {}
+      }
     } catch (e) {
       // gather diagnostics for attempted adb operations
       const basename = path.basename(apkToInstall)
