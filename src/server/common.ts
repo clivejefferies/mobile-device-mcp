@@ -102,7 +102,17 @@ export function buildActionExecutionResult({
 }
 
 export function wrapToolError(name: string, error: unknown) {
-  const message = error instanceof Error ? error.message : String(error)
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === 'object' && error !== null
+      ? (() => {
+          try {
+            return JSON.stringify(error, null, 2)
+          } catch {
+            return '[unserializable error object]'
+          }
+        })()
+      : String(error)
   return {
     content: [{
       type: 'text' as const,

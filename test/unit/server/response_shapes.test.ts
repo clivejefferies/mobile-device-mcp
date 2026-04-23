@@ -145,6 +145,16 @@ async function run() {
       }
     })
 
+    ;(ToolsInteract as any).tapHandler = async () => {
+      throw { code: 'E_CUSTOM', detail: { field: 'value' } }
+    }
+
+    const objectTapResponse = await handleToolCall('tap', { platform: 'android', x: 1, y: 2 })
+    const objectTapPayload = JSON.parse((objectTapResponse as any).content[0].text)
+    assert.strictEqual(objectTapPayload.error.tool, 'tap')
+    assert.match(objectTapPayload.error.message, /"code": "E_CUSTOM"/)
+    assert.match(objectTapPayload.error.message, /"field": "value"/)
+
     ;(ToolsObserve as any).captureScreenshotHandler = async () => ({
       device: { platform: 'ios', id: 'booted', osVersion: '18.0', model: 'Simulator', simulator: true },
       screenshot: Buffer.from('png-data').toString('base64'),
