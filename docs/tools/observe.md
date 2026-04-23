@@ -132,24 +132,40 @@ Behavior:
 - Returns partial data when components fail and includes per-part error fields (e.g. `screenshot_error`, `ui_tree_error`).
 - Caps logs to `logLines` entries and prefers recent entries.
 - Fast by default: does not wait for new logs and avoids long blocking operations.
+- Returns a dual-layer payload:
+  - `raw` is authoritative and contains the underlying observation data unchanged.
+  - `semantic` is optional, derived from `raw`, and intended for planning only.
 
 Response (example):
 
 ```json
 {
-  "timestamp": 1710000000,
-  "reason": "Crash after tapping checkout",
-  "activity": "CheckoutActivity",
-  "fingerprint": "abc123",
-  "screenshot": "<base64 PNG string>",
-  "ui_tree": { ... },
-  "logs": [ { "timestamp": 1710000000, "level": "ERROR", "message": "NullPointerException at CheckoutViewModel" } ]
+  "raw": {
+    "timestamp": 1710000000,
+    "reason": "Crash after tapping checkout",
+    "activity": "CheckoutActivity",
+    "fingerprint": "abc123",
+    "screenshot": "<base64 PNG string>",
+    "ui_tree": { ... },
+    "logs": [ { "timestamp": 1710000000, "level": "ERROR", "message": "NullPointerException at CheckoutViewModel" } ]
+  },
+  "semantic": {
+    "screen": "Checkout",
+    "signals": {
+      "has_error_logs": true,
+      "has_clickable_elements": false
+    },
+    "actions_available": ["review checkout", "inspect error"],
+    "confidence": 0.82,
+    "warnings": []
+  }
 }
 ```
 
 Notes:
 - Useful immediately after detecting crashes or unexpected UI behaviour.
 - Do not expect perfect data during a crash; tool is designed to return best-effort context and include errors for failed parts.
+- Treat `semantic` as planning guidance only; `raw` remains the source of truth.
 
 ---
 
