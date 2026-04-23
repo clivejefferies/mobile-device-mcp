@@ -82,9 +82,10 @@ export function buildActionExecutionResult({
   failure?: { failureCode: ActionFailureCode; retryable: boolean }
   details?: Record<string, unknown>
 }): ActionExecutionResult {
-  const timestamp = Date.now()
+  const timestampMs = Date.now()
+  const timestamp = new Date(timestampMs).toISOString()
   return {
-    action_id: nextActionId(actionType, timestamp),
+    action_id: nextActionId(actionType, timestampMs),
     timestamp,
     action_type: actionType,
     ...(device ? { device } : {}),
@@ -97,5 +98,20 @@ export function buildActionExecutionResult({
     ui_fingerprint_before: uiFingerprintBefore,
     ui_fingerprint_after: uiFingerprintAfter,
     ...(details ? { details } : {})
+  }
+}
+
+export function wrapToolError(name: string, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  return {
+    content: [{
+      type: 'text' as const,
+      text: JSON.stringify({
+        error: {
+          tool: name,
+          message
+        }
+      }, null, 2)
+    }]
   }
 }

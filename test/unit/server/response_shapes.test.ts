@@ -47,7 +47,7 @@ async function run() {
 
     ;(ToolsInteract as any).tapElementHandler = async () => ({
       action_id: 'tap_element_1',
-      timestamp: 1234567890,
+      timestamp: '2026-04-23T08:00:00.000Z',
       action_type: 'tap_element',
       target: {
         selector: { elementId: 'el_ready' },
@@ -62,6 +62,7 @@ async function run() {
     const tapElementPayload = JSON.parse((tapElementResponse as any).content[0].text)
     assert.strictEqual(tapElementPayload.success, true)
     assert.strictEqual(tapElementPayload.action_type, 'tap_element')
+    assert.match(tapElementPayload.timestamp, /^\d{4}-\d{2}-\d{2}T/)
     assert.strictEqual(tapElementPayload.target.resolved.elementId, 'el_ready')
     assert.strictEqual(tapElementPayload.ui_fingerprint_before, 'fp_before')
 
@@ -71,6 +72,7 @@ async function run() {
     const tapPayload = JSON.parse((tapResponse as any).content[0].text)
     assert.strictEqual(tapPayload.success, true)
     assert.strictEqual(tapPayload.action_type, 'tap')
+    assert.match(tapPayload.timestamp, /^\d{4}-\d{2}-\d{2}T/)
     assert.deepStrictEqual(tapPayload.target.selector, { x: 1, y: 2 })
     assert.strictEqual(tapPayload.ui_fingerprint_before, 'fp_mock')
 
@@ -93,6 +95,7 @@ async function run() {
     const startAppPayload = JSON.parse((startAppResponse as any).content[0].text)
     assert.strictEqual(startAppPayload.success, true)
     assert.strictEqual(startAppPayload.action_type, 'start_app')
+    assert.match(startAppPayload.timestamp, /^\d{4}-\d{2}-\d{2}T/)
     assert.strictEqual(startAppPayload.device.id, 'emulator-5554')
     assert.deepStrictEqual(startAppPayload.target.selector, { appId: 'com.example.app' })
     assert.strictEqual(startAppPayload.details.launch_time_ms, 123)
@@ -127,6 +130,20 @@ async function run() {
     assert.strictEqual(expectElementPayload.success, true)
     assert.strictEqual(expectElementPayload.element_id, 'el_ready')
     assert.strictEqual(expectElementPayload.expected_condition, 'visible')
+
+    ;(ToolsInteract as any).tapHandler = async () => {
+      throw new Error('boom')
+    }
+
+    const failingTapResponse = await handleToolCall('tap', { platform: 'android', x: 1, y: 2 })
+    assert.strictEqual((failingTapResponse as any).content.length, 1)
+    const failingTapPayload = JSON.parse((failingTapResponse as any).content[0].text)
+    assert.deepStrictEqual(failingTapPayload, {
+      error: {
+        tool: 'tap',
+        message: 'boom'
+      }
+    })
 
     ;(ToolsObserve as any).captureScreenshotHandler = async () => ({
       device: { platform: 'ios', id: 'booted', osVersion: '18.0', model: 'Simulator', simulator: true },

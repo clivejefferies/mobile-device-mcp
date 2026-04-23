@@ -173,7 +173,7 @@ export interface ActionTargetResolved {
 
 export interface ActionExecutionResult {
   action_id: string;
-  timestamp: number;
+  timestamp: string;
   action_type: string;
   device?: DeviceInfo;
   target: {

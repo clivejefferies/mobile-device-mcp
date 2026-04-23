@@ -16,7 +16,8 @@ import {
   inferScrollFailure,
   ToolCallArgs,
   ToolHandler,
-  wrapResponse
+  wrapResponse,
+  wrapToolError
 } from './common.js'
 
 async function handleStartApp(args: ToolCallArgs) {
@@ -375,8 +376,7 @@ export async function handleToolCall(name: string, args: ToolCallArgs = {}) {
   try {
     return await handler(args)
   } catch (error) {
-    return {
-      content: [{ type: 'text' as const, text: `Error executing tool ${name}: ${error instanceof Error ? error.message : String(error)}` }]
-    }
+    console.error(`Error executing tool ${name}:`, error)
+    return wrapToolError(name, error)
   }
 }
