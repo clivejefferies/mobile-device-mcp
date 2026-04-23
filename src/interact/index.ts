@@ -146,7 +146,7 @@ export class ToolsInteract {
 
   private static _actionFailure(
     actionId: string,
-    timestamp: number,
+    timestamp: string,
     actionType: string,
     selector: Record<string, unknown> | null,
     resolved: ActionTargetResolved | null,
@@ -254,9 +254,10 @@ export class ToolsInteract {
   }
 
   static async tapElementHandler({ elementId }: { elementId: string }): Promise<TapElementResponse> {
-    const timestamp = Date.now()
+    const timestampMs = Date.now()
+    const timestamp = new Date(timestampMs).toISOString()
     const actionType = 'tap_element'
-    const actionId = nextActionId(actionType, timestamp)
+    const actionId = nextActionId(actionType, timestampMs)
     const selector = { elementId }
     const resolved = ToolsInteract._resolvedUiElements.get(elementId)
     if (!resolved) {
@@ -304,6 +305,7 @@ export class ToolsInteract {
       action_id: actionId,
       timestamp,
       action_type: actionType,
+      ...(tree?.device ? { device: tree.device } : {}),
       target: {
         selector,
         resolved: resolvedTarget

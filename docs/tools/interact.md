@@ -33,7 +33,7 @@ Example response:
 ```json
 {
   "action_id": "tap_1710000000000_1",
-  "timestamp": 1710000000000,
+  "timestamp": "2026-04-23T08:00:00.000Z",
   "action_type": "tap",
   "target": { "selector": { "x": 100, "y": 200 }, "resolved": null },
   "success": true,
@@ -303,7 +303,7 @@ Success response:
 ```json
 {
   "action_id": "tap_element_1710000000000_1",
-  "timestamp": 1710000000000,
+  "timestamp": "2026-04-23T08:00:00.000Z",
   "action_type": "tap_element",
   "target": {
     "selector": { "elementId": "el_123" },
@@ -328,7 +328,7 @@ Failure response:
 ```json
 {
   "action_id": "tap_element_1710000000001_2",
-  "timestamp": 1710000000001,
+  "timestamp": "2026-04-23T08:00:00.001Z",
   "action_type": "tap_element",
   "target": { "selector": { "elementId": "el_123" }, "resolved": null },
   "success": false,

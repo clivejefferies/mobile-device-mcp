@@ -121,7 +121,7 @@ start_app response example:
 ```json
 {
   "action_id": "start_app_1710000000000_1",
-  "timestamp": 1710000000000,
+  "timestamp": "2026-04-23T08:00:00.000Z",
   "action_type": "start_app",
   "device": { "platform": "android", "id": "emulator-5554", "osVersion": "14", "model": "Pixel", "simulator": true },
   "target": { "selector": { "appId": "com.example.app" }, "resolved": null },

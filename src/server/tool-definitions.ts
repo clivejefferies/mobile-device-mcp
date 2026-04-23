@@ -10,7 +10,7 @@ Inputs:
 - deviceId (optional)
 
 Output Structure:
-- action_id, timestamp, action_type
+ - action_id, timestamp (ISO 8601), action_type
 - target.selector = { appId }
 - success = true when launch was dispatched successfully
 - failure_code/retryable when launch dispatch fails
@@ -83,7 +83,7 @@ Inputs:
 - deviceId (optional)
 
 Output Structure:
-- action_id, timestamp, action_type
+ - action_id, timestamp (ISO 8601), action_type
 - target.selector = { appId }
 - success = true when the restart command completed
 - failure_code/retryable when restart dispatch fails
@@ -532,7 +532,7 @@ Inputs:
 - deviceId (optional)
 
 Output Structure:
-- action_id, timestamp, action_type
+ - action_id, timestamp (ISO 8601), action_type
 - target.selector = { x, y }
 - success = true when the tap was dispatched
 - failure_code/retryable when dispatch fails
@@ -587,7 +587,7 @@ Inputs:
 
 Output Structure:
 - action_id: unique timestamp-based action identifier
-- timestamp: epoch milliseconds for the action attempt
+- timestamp: ISO 8601 timestamp for the action attempt
 - action_type: "tap_element"
 - target.selector: original target handle ({ elementId })
 - target.resolved: minimal resolved element info used for the tap
@@ -640,7 +640,7 @@ Inputs:
 - platform/deviceId (optional)
 
 Output Structure:
-- action_id, timestamp, action_type
+- action_id, timestamp (ISO 8601), action_type
 - target.selector = { x1, y1, x2, y2, duration }
 - success = true when the swipe was dispatched
 - failure_code/retryable when dispatch fails
@@ -692,7 +692,7 @@ Inputs:
 - direction, maxScrolls, scrollAmount, deviceId (optional)
 
 Output Structure:
-- action_id, timestamp, action_type
+- action_id, timestamp (ISO 8601), action_type
 - target.selector = original selector
 - target.resolved = minimal resolved element info when found
 - success = true when scrolling produced a visible target element
@@ -746,7 +746,7 @@ Inputs:
 - platform/deviceId (optional)
 
 Output Structure:
-- action_id, timestamp, action_type
+- action_id, timestamp (ISO 8601), action_type
 - target.selector = { text }
 - success = true when text input was dispatched
 - failure_code/retryable when dispatch fails
@@ -795,7 +795,7 @@ Inputs:
 - platform/deviceId (optional)
 
 Output Structure:
-- action_id, timestamp, action_type
+- action_id, timestamp (ISO 8601), action_type
 - target.selector = { key: "back" }
 - success = true when the back action was dispatched
 - failure_code/retryable when dispatch fails
