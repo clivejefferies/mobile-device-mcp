@@ -5,12 +5,25 @@ import { execCommand, execCommandWithDiagnostics, getIOSDeviceMetadata, validate
 import { iOSObserve } from "../observe/ios.js"
 import path from "path"
 
+type BuildEnv = Record<string, string | undefined>
+
+export interface IOSBuildOptions {
+  workspace?: string
+  project?: string
+  scheme?: string
+  destinationUDID?: string
+  derivedDataPath?: string
+  buildJobs?: number
+  forceClean?: boolean
+  xcodeCmd?: string
+  env?: BuildEnv
+}
+
 export class iOSManage {
-  async build(projectPath: string, optsOrVariant?: string | { workspace?: string, project?: string, scheme?: string, destinationUDID?: string, derivedDataPath?: string, forceClean?: boolean, xcodeCmd?: string }): Promise<{ artifactPath: string, output?: string } | { error: string, diagnostics?: any }> {
+  async build(projectPath: string, optsOrVariant?: string | IOSBuildOptions): Promise<{ artifactPath: string, output?: string } | { error: string, diagnostics?: any }> {
     // Support legacy variant string as second arg
-    let opts: any = {}
-    if (typeof optsOrVariant === 'string') opts.variant = optsOrVariant
-    else opts = optsOrVariant || {}
+    const opts: IOSBuildOptions = typeof optsOrVariant === 'string' ? {} : (optsOrVariant || {})
+    const env = { ...process.env, ...(opts.env || {}) }
 
     try {
       // Look for an Xcode workspace or project at the provided path. If not present, scan subdirectories (limited depth)
@@ -65,7 +78,7 @@ export class iOSManage {
       }
 
       // Determine destination: prefer explicit option, then env var, otherwise use booted simulator UDID
-      let destinationUDID = opts.destinationUDID || process.env.MCP_XCODE_DESTINATION_UDID || process.env.MCP_XCODE_DESTINATION || ''
+      let destinationUDID = opts.destinationUDID || env.MCP_XCODE_DESTINATION_UDID || env.MCP_XCODE_DESTINATION || ''
       if (!destinationUDID) {
         try {
           const meta = await getIOSDeviceMetadata('booted')
@@ -74,7 +87,7 @@ export class iOSManage {
       }
 
       // Determine xcode command early so it can be used when detecting schemes
-      const xcodeCmd = opts.xcodeCmd || process.env.XCODEBUILD_PATH || 'xcodebuild'
+      const xcodeCmd = opts.xcodeCmd || env.XCODEBUILD_PATH || 'xcodebuild'
 
       // Determine available schemes by querying xcodebuild -list rather than guessing
       async function detectScheme(xcodeCmdInner: string, workspacePath?: string, projectPathFull?: string, cwd?: string): Promise<string | null> {
@@ -98,11 +111,11 @@ export class iOSManage {
       let chosenScheme: string | null = opts.scheme || null
 
       // Derived data and result bundle (agent-configurable)
-      const derivedDataPath = opts.derivedDataPath || process.env.MCP_DERIVED_DATA || path.join(projectRootDir, 'build', 'DerivedData')
+      const derivedDataPath = opts.derivedDataPath || env.MCP_DERIVED_DATA || path.join(projectRootDir, 'build', 'DerivedData')
       // Use unique result bundle path by default to avoid collisions
-      const resultBundlePath = process.env.MCP_XCODE_RESULTBUNDLE_PATH || path.join(projectRootDir, 'build', 'xcresults', `ResultBundle-${Date.now()}-${Math.random().toString(36).slice(2)}.xcresult`)
-      const xcodeJobs = parseInt(process.env.MCP_XCODE_JOBS || '', 10) || 4
-      const forceClean = opts.forceClean || process.env.MCP_FORCE_CLEAN === '1'
+      const resultBundlePath = env.MCP_XCODE_RESULTBUNDLE_PATH || path.join(projectRootDir, 'build', 'xcresults', `ResultBundle-${Date.now()}-${Math.random().toString(36).slice(2)}.xcresult`)
+      const xcodeJobs = typeof opts.buildJobs === 'number' ? opts.buildJobs : (parseInt(env.MCP_XCODE_JOBS || '', 10) || 4)
+      const forceClean = typeof opts.forceClean === 'boolean' ? opts.forceClean : env.MCP_FORCE_CLEAN === '1'
 
       // ensure result dirs exist
       await fs.mkdir(path.dirname(resultBundlePath), { recursive: true }).catch(() => {})
@@ -147,8 +160,8 @@ export class iOSManage {
       await fs.mkdir(resultsDir, { recursive: true }).catch(() => {})
 
 
-      const XCODEBUILD_TIMEOUT = parseInt(process.env.MCP_XCODEBUILD_TIMEOUT || '', 10) || 180000 // default 3 minutes
-      const MAX_RETRIES = parseInt(process.env.MCP_XCODEBUILD_RETRIES || '', 10) || 1
+      const XCODEBUILD_TIMEOUT = parseInt(env.MCP_XCODEBUILD_TIMEOUT || '', 10) || 180000 // default 3 minutes
+      const MAX_RETRIES = parseInt(env.MCP_XCODEBUILD_RETRIES || '', 10) || 1
 
       const tries = MAX_RETRIES + 1
       let lastStdout = ''
@@ -157,8 +170,8 @@ export class iOSManage {
 
       for (let attempt = 1; attempt <= tries; attempt++) {
         // Run xcodebuild with a watchdog
-        const res = await new Promise<{ code: number | null, stdout: string, stderr: string, killedByWatchdog?: boolean }>((resolve) => {
-          const proc = spawn(xcodeCmd, buildArgs, { cwd: projectRootDir })
+          const res = await new Promise<{ code: number | null, stdout: string, stderr: string, killedByWatchdog?: boolean }>((resolve) => {
+          const proc = spawn(xcodeCmd, buildArgs, { cwd: projectRootDir, env })
           let stdout = ''
           let stderr = ''
 
@@ -215,7 +228,7 @@ export class iOSManage {
       if (lastErr) {
         // Include diagnostics and result bundle path when available; provide structured info useful for agents
         const invokedCommand = `${xcodeCmd} ${buildArgs.map(a => a.includes(' ') ? `"${a}"` : a).join(' ')}`
-        const envSnapshot = { PATH: process.env.PATH }
+          const envSnapshot = { PATH: env.PATH }
         return { error: `xcodebuild failed: ${lastErr.message}. See build-results for logs.`, output: `stdout:\n${lastStdout}\nstderr:\n${lastStderr}`, diagnostics: { exitCode: (lastErr as any).code || null, invokedCommand, cwd: projectRootDir, envSnapshot } }
       }
 

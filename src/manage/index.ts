@@ -60,25 +60,37 @@ export async function detectProjectPlatform(projectPath: string): Promise<'ios'|
   }
 }
 
+type BuildEnv = Record<string, string | undefined>
+
+function mergeDefinedEnv(...parts: Array<BuildEnv | undefined>): BuildEnv {
+  const merged: BuildEnv = {}
+  for (const part of parts) {
+    if (!part) continue
+    for (const [key, value] of Object.entries(part)) {
+      if (typeof value === 'undefined') continue
+      merged[key] = value
+    }
+  }
+  return merged
+}
+
 export class ToolsManage {
   static async build_android({ projectPath, gradleTask, maxWorkers, gradleCache, forceClean }: { projectPath: string, gradleTask?: string, maxWorkers?: number, gradleCache?: boolean, forceClean?: boolean }) {
     const android = new AndroidManage()
-    // prepare gradle options via environment hints
-    if (typeof maxWorkers === 'number') process.env.MCP_GRADLE_WORKERS = String(maxWorkers)
-    if (typeof gradleCache === 'boolean') process.env.MCP_GRADLE_CACHE = gradleCache ? '1' : '0'
-    if (forceClean) process.env.MCP_FORCE_CLEAN_ANDROID = '1'
     const task = gradleTask || 'assembleDebug'
-    const artifact = await (android as any).build(projectPath, task)
-    return artifact
+    return await (android as any).build(projectPath, {
+      variant: task,
+      env: mergeDefinedEnv({
+        MCP_GRADLE_TASK: task,
+        MCP_GRADLE_WORKERS: typeof maxWorkers === 'number' ? String(maxWorkers) : undefined,
+        MCP_GRADLE_CACHE: typeof gradleCache === 'boolean' ? (gradleCache ? '1' : '0') : undefined,
+        MCP_FORCE_CLEAN_ANDROID: forceClean ? '1' : undefined
+      })
+    })
   }
 
   static async build_ios({ projectPath, workspace: _workspace, project: _project, scheme: _scheme, destinationUDID, derivedDataPath, buildJobs, forceClean }: { projectPath: string, workspace?: string, project?: string, scheme?: string, destinationUDID?: string, derivedDataPath?: string, buildJobs?: number, forceClean?: boolean }) {
     const ios = new iOSManage()
-    // Use provided options rather than env-only; still set env fallbacks for downstream tools
-    if (derivedDataPath) process.env.MCP_DERIVED_DATA = derivedDataPath
-    if (typeof buildJobs === 'number') process.env.MCP_BUILD_JOBS = String(buildJobs)
-    if (forceClean) process.env.MCP_FORCE_CLEAN_IOS = '1'
-    if (destinationUDID) process.env.MCP_XCODE_DESTINATION_UDID = destinationUDID
 
     const opts: any = {}
     if (_workspace) opts.workspace = _workspace
@@ -86,12 +98,21 @@ export class ToolsManage {
     if (_scheme) opts.scheme = _scheme
     if (destinationUDID) opts.destinationUDID = destinationUDID
     if (derivedDataPath) opts.derivedDataPath = derivedDataPath
-    if (forceClean) opts.forceClean = forceClean
+    if (typeof buildJobs === 'number') opts.buildJobs = buildJobs
+    if (typeof forceClean === 'boolean') opts.forceClean = forceClean
     // prefer explicit xcodebuild path from env
     if (process.env.XCODEBUILD_PATH) opts.xcodeCmd = process.env.XCODEBUILD_PATH
 
-    const artifact = await (ios as any).build(projectPath, opts)
-    return artifact
+    return await (ios as any).build(projectPath, {
+      ...opts,
+      env: mergeDefinedEnv({
+        MCP_DERIVED_DATA: derivedDataPath,
+        MCP_XCODE_JOBS: typeof buildJobs === 'number' ? String(buildJobs) : undefined,
+        MCP_FORCE_CLEAN: typeof forceClean === 'boolean' ? (forceClean ? '1' : '0') : undefined,
+        MCP_XCODE_DESTINATION_UDID: destinationUDID,
+        XCODEBUILD_PATH: process.env.XCODEBUILD_PATH
+      })
+    })
   }
 
   static async build_flutter({ projectPath, platform, buildMode, maxWorkers: _maxWorkers, forceClean: _forceClean }: { projectPath: string, platform?: 'android'|'ios', buildMode?: 'debug'|'release'|'profile', maxWorkers?: number, forceClean?: boolean }) {
@@ -178,11 +199,11 @@ export class ToolsManage {
     const chosen = platform || 'android'
     if (chosen === 'android') {
       const android = new AndroidManage()
-      const artifact = await (android as any).build(projectPath, variant)
+      const artifact = await (android as any).build(projectPath, { variant })
       return artifact
     } else {
       const ios = new iOSManage()
-      const artifact = await (ios as any).build(projectPath, variant)
+      const artifact = await (ios as any).build(projectPath, { variant })
       return artifact
     }
   }

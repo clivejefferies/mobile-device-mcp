@@ -32,6 +32,15 @@ async function run() {
     assert.strictEqual(installPayload.output, 'Success')
     assert.strictEqual(installPayload.device.id, 'emulator-5554')
 
+    const missingBuildResponse = await handleToolCall('build_app', { projectPath: '/tmp/project' })
+    const missingBuildPayload = JSON.parse((missingBuildResponse as any).content[0].text)
+    assert.deepStrictEqual(missingBuildPayload, {
+      error: {
+        tool: 'build_app',
+        message: 'Missing or invalid string argument: platform'
+      }
+    })
+
     ;(ToolsInteract as any).waitForUIHandler = async () => ({
       status: 'success',
       matched: 1,
@@ -155,6 +164,15 @@ async function run() {
     assert.strictEqual(objectTapPayload.error.tool, 'tap')
     assert.match(objectTapPayload.error.message, /"code": "E_CUSTOM"/)
     assert.match(objectTapPayload.error.message, /"field": "value"/)
+
+    const missingArgResponse = await handleToolCall('tap', { platform: 'android', x: 1 })
+    const missingArgPayload = JSON.parse((missingArgResponse as any).content[0].text)
+    assert.deepStrictEqual(missingArgPayload, {
+      error: {
+        tool: 'tap',
+        message: 'Missing or invalid number argument: y'
+      }
+    })
 
     ;(ToolsObserve as any).captureScreenshotHandler = async () => ({
       device: { platform: 'ios', id: 'booted', osVersion: '18.0', model: 'Simulator', simulator: true },

@@ -2,22 +2,33 @@ import { promises as fs } from 'fs'
 import { spawn } from 'child_process'
 import path from 'path'
 import { existsSync } from 'fs'
-import { execAdb, spawnAdb, getAndroidDeviceMetadata, getDeviceInfo, findApk } from '../utils/android/utils.js'
+import { execAdb, spawnAdb, getAndroidDeviceMetadata, getDeviceInfo, findApk, prepareGradle } from '../utils/android/utils.js'
 import { execAdbWithDiagnostics } from '../utils/diagnostics.js'
 import { detectJavaHome } from '../utils/java.js'
 import { AndroidObserve } from '../observe/android.js'
 import { InstallAppResponse, StartAppResponse, TerminateAppResponse, RestartAppResponse, ResetAppDataResponse } from '../types.js'
+
+type BuildEnv = Record<string, string | undefined>
+
+export interface AndroidBuildOptions {
+  variant?: string
+  env?: BuildEnv
+}
 
 export class AndroidManage {
   private isTestOnlyInstallFailure(output: string | undefined): boolean {
     return typeof output === 'string' && output.includes('INSTALL_FAILED_TEST_ONLY')
   }
 
-  async build(projectPath: string, _variant?: string): Promise<{ artifactPath: string, output?: string } | { error: string }> {
-    void _variant
+  async build(projectPath: string, optionsOrVariant?: string | AndroidBuildOptions): Promise<{ artifactPath: string, output?: string } | { error: string }> {
+    const options: AndroidBuildOptions = typeof optionsOrVariant === 'string' ? { variant: optionsOrVariant } : (optionsOrVariant || {})
     try {
+      const env = {
+        ...(options.env || {}),
+        ...(options.variant ? { MCP_GRADLE_TASK: options.variant } : {})
+      }
       // Always use the shared prepareGradle utility for consistent env/setup
-      const { execCmd, gradleArgs, spawnOpts } = await (await import('../utils/android/utils.js')).prepareGradle(projectPath)
+      const { execCmd, gradleArgs, spawnOpts } = await prepareGradle(projectPath, env)
       await new Promise<void>((resolve, reject) => {
         const proc = spawn(execCmd, gradleArgs, spawnOpts)
         let stderr = ''
@@ -43,13 +54,13 @@ export class AndroidManage {
 
     let apkToInstall: string = apkPath
     try {
-      const stat = await fs.stat(apkPath).catch(() => null)
-      if (stat && stat.isDirectory()) {
-        const detectedJavaHome = await detectJavaHome().catch(() => undefined)
-        const env = Object.assign({}, process.env)
-        if (detectedJavaHome) {
-          if (env.JAVA_HOME !== detectedJavaHome) {
-            env.JAVA_HOME = detectedJavaHome
+        const stat = await fs.stat(apkPath).catch(() => null)
+        if (stat && stat.isDirectory()) {
+          const detectedJavaHome = await detectJavaHome().catch(() => undefined)
+          const env = { ...process.env }
+          if (detectedJavaHome) {
+            if (env.JAVA_HOME !== detectedJavaHome) {
+              env.JAVA_HOME = detectedJavaHome
             env.PATH = `${path.join(detectedJavaHome, 'bin')}${path.delimiter}${env.PATH || ''}`
             console.debug('[android-run] Overriding JAVA_HOME with detected path:', detectedJavaHome)
           }
