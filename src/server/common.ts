@@ -47,6 +47,12 @@ export function getBooleanArg(args: ToolCallArgs, key: string): boolean | undefi
   return typeof value === 'boolean' ? value : undefined
 }
 
+export function requireBooleanArg(args: ToolCallArgs, key: string): boolean {
+  const value = getBooleanArg(args, key)
+  if (value === undefined) throw new Error(`Missing or invalid boolean argument: ${key}`)
+  return value
+}
+
 export function getObjectArg<T extends Record<string, unknown>>(args: ToolCallArgs, key: string): T | undefined {
   const value = args[key]
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined

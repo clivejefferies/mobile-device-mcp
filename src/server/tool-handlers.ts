@@ -19,6 +19,7 @@ import {
   getStringArg,
   inferGenericFailure,
   inferScrollFailure,
+  requireBooleanArg,
   requireNumberArg,
   requireObjectArg,
   requireStringArg,
@@ -123,8 +124,8 @@ async function handleInstallApp(args: ToolCallArgs) {
 }
 
 async function handleBuildApp(args: ToolCallArgs) {
-  const platform = getStringArg(args, 'platform') as PlatformArg | undefined
-  const projectType = getStringArg(args, 'projectType') as ProjectTypeArg | undefined
+  const platform = requireStringArg(args, 'platform') as PlatformArg
+  const projectType = requireStringArg(args, 'projectType') as ProjectTypeArg
   const projectPath = requireStringArg(args, 'projectPath')
   const variant = getStringArg(args, 'variant')
   const res = await ToolsManage.buildAppHandler({ platform, projectPath, variant, projectType })
@@ -147,7 +148,7 @@ async function handleBuildAndInstall(args: ToolCallArgs) {
 }
 
 async function handleGetLogs(args: ToolCallArgs) {
-  const platform = getStringArg(args, 'platform') as PlatformArg | undefined
+  const platform = requireStringArg(args, 'platform') as PlatformArg
   const appId = getStringArg(args, 'appId')
   const deviceId = getStringArg(args, 'deviceId')
   const pid = getNumberArg(args, 'pid')
@@ -180,7 +181,7 @@ async function handleGetSystemStatus() {
 }
 
 async function handleCaptureScreenshot(args: ToolCallArgs) {
-  const platform = getStringArg(args, 'platform') as PlatformArg | undefined
+  const platform = requireStringArg(args, 'platform') as PlatformArg
   const deviceId = getStringArg(args, 'deviceId')
   const res = await ToolsObserve.captureScreenshotHandler({ platform, deviceId })
   const mime = (res as any).screenshot_mime || 'image/png'
@@ -208,7 +209,7 @@ async function handleCaptureDebugSnapshot(args: ToolCallArgs) {
 }
 
 async function handleGetUITree(args: ToolCallArgs) {
-  const platform = getStringArg(args, 'platform') as PlatformArg | undefined
+  const platform = requireStringArg(args, 'platform') as PlatformArg
   const deviceId = getStringArg(args, 'deviceId')
   const res = await ToolsObserve.getUITreeHandler({ platform, deviceId })
   return wrapResponse(res)
@@ -392,9 +393,9 @@ async function handlePressBack(args: ToolCallArgs) {
 }
 
 async function handleStartLogStream(args: ToolCallArgs) {
-  const platform = getStringArg(args, 'platform') as PlatformArg | undefined
+  const platform = (getStringArg(args, 'platform') as PlatformArg | undefined) ?? 'android'
   const packageName = requireStringArg(args, 'packageName')
-  const level = getStringArg(args, 'level') as 'error' | 'warn' | 'info' | 'debug' | undefined
+  const level = (getStringArg(args, 'level') as 'error' | 'warn' | 'info' | 'debug' | undefined) ?? 'error'
   const sessionId = getStringArg(args, 'sessionId')
   const deviceId = getStringArg(args, 'deviceId')
   const res = await ToolsObserve.startLogStreamHandler({ platform, packageName, level, sessionId, deviceId })
@@ -418,12 +419,12 @@ async function handleStopLogStream(args: ToolCallArgs) {
 }
 
 function handleClassifyActionOutcome(args: ToolCallArgs) {
-  const uiChanged = getBooleanArg(args, 'uiChanged')
+  const uiChanged = requireBooleanArg(args, 'uiChanged')
   const expectedElementVisible = getBooleanArg(args, 'expectedElementVisible')
   const networkRequests = getArrayArg<ClassifyNetworkRequestArg>(args, 'networkRequests')
   const hasLogErrors = getBooleanArg(args, 'hasLogErrors')
   const result = classifyActionOutcome({
-    uiChanged: Boolean(uiChanged),
+    uiChanged,
     expectedElementVisible: expectedElementVisible ?? null,
     networkRequests: networkRequests ?? null,
     hasLogErrors: hasLogErrors ?? null
@@ -432,7 +433,7 @@ function handleClassifyActionOutcome(args: ToolCallArgs) {
 }
 
 async function handleGetNetworkActivity(args: ToolCallArgs) {
-  const platform = getStringArg(args, 'platform') ?? 'android'
+  const platform = requireStringArg(args, 'platform') as PlatformArg
   const deviceId = getStringArg(args, 'deviceId')
   const result = await ToolsNetwork.getNetworkActivity({ platform, deviceId })
   return wrapResponse(result)

@@ -50,26 +50,40 @@ export function ensureAdbAvailable() {
   }
 }
 
+type GradleEnvOverrides = Record<string, string | undefined>
+
+function mergeEnv(overrides?: GradleEnvOverrides) {
+  const env: Record<string, string> = {}
+  for (const [key, value] of Object.entries(process.env)) {
+    if (typeof value === 'string') env[key] = value
+  }
+  for (const [key, value] of Object.entries(overrides || {})) {
+    if (typeof value === 'string') env[key] = value
+  }
+  return env
+}
+
 /**
  * Prepare Gradle execution options for building an Android project.
  * Returns execCmd (wrapper or gradle), base gradleArgs array, and spawn options including env.
  */
-export async function prepareGradle(projectPath: string): Promise<{ execCmd: string, gradleArgs: string[], spawnOpts: any }> {
+export async function prepareGradle(projectPath: string, envOverrides: GradleEnvOverrides = {}): Promise<{ execCmd: string, gradleArgs: string[], spawnOpts: any }> {
+  const env = mergeEnv(envOverrides)
   const gradlewPath = path.join(projectPath, 'gradlew')
   const gradleCmd = existsSync(gradlewPath) ? './gradlew' : 'gradle'
   const execCmd = existsSync(gradlewPath) ? gradlewPath : gradleCmd
 
   // Start with a default task; callers may append/override via env flags
-  const gradleArgs: string[] = [ process.env.MCP_GRADLE_TASK || 'assembleDebug' ]
+  const gradleArgs: string[] = [ env.MCP_GRADLE_TASK || 'assembleDebug' ]
 
   // Respect generic MCP_BUILD_JOBS and Android-specific MCP_GRADLE_WORKERS
-  const workers = process.env.MCP_GRADLE_WORKERS || process.env.MCP_BUILD_JOBS
+  const workers = env.MCP_GRADLE_WORKERS || env.MCP_BUILD_JOBS
   if (workers) {
     gradleArgs.push(`--max-workers=${workers}`)
   }
 
   // Respect gradle cache env: default enabled; set MCP_GRADLE_CACHE=0 to disable
-  if (process.env.MCP_GRADLE_CACHE === '0') {
+  if (env.MCP_GRADLE_CACHE === '0') {
     gradleArgs.push('-Dorg.gradle.caching=false')
   }
 
@@ -81,8 +95,6 @@ export async function prepareGradle(projectPath: string): Promise<{ execCmd: str
   } catch {
     gradleCheck = { gradleJavaHome: undefined, gradleValid: false, filesChecked: [], issues: [] }
   }
-
-  const env = Object.assign({}, process.env)
 
   // Ensure child processes can find Android platform-tools (adb, etc.) by
   // prepending the platform-tools directory to PATH for spawned processes.
@@ -488,4 +500,3 @@ export function parseLogLine(line: string) {  // Collapse internal newlines so m
 }
 
 // Legacy readLogStreamLines shim removed. Use AndroidObserve.readLogStream(sessionId, limit, since) instead.
-

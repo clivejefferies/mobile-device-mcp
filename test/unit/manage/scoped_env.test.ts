@@ -24,39 +24,46 @@ async function run() {
     process.env.MCP_XCODE_DESTINATION_UDID = 'ambient-destination'
 
     let androidCalls = 0
-    AndroidManage.prototype.build = async function () {
+    AndroidManage.prototype.build = async function (_projectPath: string, options?: { variant?: string, env?: Record<string, string | undefined> }) {
       androidCalls += 1
       if (androidCalls === 1) {
-        assert.strictEqual(process.env.MCP_GRADLE_WORKERS, '3')
-        assert.strictEqual(process.env.MCP_GRADLE_CACHE, '0')
-        assert.strictEqual(process.env.MCP_FORCE_CLEAN_ANDROID, '1')
+        assert.strictEqual(options?.variant, 'assembleDebug')
+        assert.deepStrictEqual(options?.env, {
+          MCP_GRADLE_TASK: 'assembleDebug',
+          MCP_GRADLE_WORKERS: '3',
+          MCP_GRADLE_CACHE: '0',
+          MCP_FORCE_CLEAN_ANDROID: '1'
+        })
       } else {
-        assert.strictEqual(process.env.MCP_GRADLE_WORKERS, 'ambient-workers')
-        assert.strictEqual(process.env.MCP_GRADLE_CACHE, 'ambient-cache')
-        assert.strictEqual(process.env.MCP_FORCE_CLEAN_ANDROID, 'ambient-force-android')
+        assert.strictEqual(options?.variant, 'assembleDebug')
+        assert.deepStrictEqual(options?.env, {
+          MCP_GRADLE_TASK: 'assembleDebug'
+        })
       }
       return { artifactPath: '/tmp/fake.apk' }
     }
 
     let iosCalls = 0
-    iOSManage.prototype.build = async function () {
+    iOSManage.prototype.build = async function (_projectPath: string, options?: { variant?: string, workspace?: string, project?: string, scheme?: string, destinationUDID?: string, derivedDataPath?: string, buildJobs?: number, forceClean?: boolean, xcodeCmd?: string, env?: Record<string, string | undefined> }) {
       iosCalls += 1
       if (iosCalls === 1) {
-        assert.strictEqual(process.env.MCP_DERIVED_DATA, '/tmp/derived')
-        assert.strictEqual(process.env.MCP_XCODE_JOBS, '4')
-        assert.strictEqual(process.env.MCP_FORCE_CLEAN, '1')
-        assert.strictEqual(process.env.MCP_XCODE_DESTINATION_UDID, 'booted')
+        assert.deepStrictEqual(options?.env, {
+          MCP_DERIVED_DATA: '/tmp/derived',
+          MCP_XCODE_JOBS: '4',
+          MCP_FORCE_CLEAN: '1',
+          MCP_XCODE_DESTINATION_UDID: 'booted'
+        })
       } else if (iosCalls === 2) {
-        assert.strictEqual(process.env.MCP_DERIVED_DATA, '/tmp/ambient-derived')
-        assert.strictEqual(process.env.MCP_XCODE_JOBS, 'ambient-xcode-jobs')
-        assert.strictEqual(process.env.MCP_FORCE_CLEAN, 'ambient-force-ios')
-        assert.strictEqual(process.env.MCP_XCODE_DESTINATION_UDID, 'ambient-destination')
+        assert.deepStrictEqual(options?.env, {})
       } else {
-        assert.strictEqual(process.env.MCP_DERIVED_DATA, '/tmp/ambient-derived')
-        assert.strictEqual(process.env.MCP_XCODE_JOBS, 'ambient-xcode-jobs')
-        assert.strictEqual(process.env.MCP_FORCE_CLEAN, '0')
-        assert.strictEqual(process.env.MCP_XCODE_DESTINATION_UDID, 'ambient-destination')
+        assert.deepStrictEqual(options?.env, {
+          MCP_FORCE_CLEAN: '0',
+        })
       }
+      assert.strictEqual(options?.derivedDataPath, iosCalls === 1 ? '/tmp/derived' : undefined)
+      assert.strictEqual(options?.buildJobs, iosCalls === 1 ? 4 : undefined)
+      assert.strictEqual(options?.forceClean, iosCalls === 1 ? true : iosCalls === 3 ? false : undefined)
+      assert.strictEqual(options?.destinationUDID, iosCalls === 1 ? 'booted' : undefined)
       return { artifactPath: '/tmp/Fake.app' }
     }
 
