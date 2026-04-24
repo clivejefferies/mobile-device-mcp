@@ -64,8 +64,8 @@ async function withScopedEnv<T>(updates: Record<string, string | undefined>, run
   const previousValues = new Map<string, string | undefined>()
 
   for (const [key, value] of Object.entries(updates)) {
-    if (value === undefined) continue
     previousValues.set(key, process.env[key])
+    if (value === undefined) continue
     process.env[key] = value
   }
 
