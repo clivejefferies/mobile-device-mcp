@@ -36,6 +36,7 @@ interface UiElement {
   parentId?: number | string | null
   _index?: number
   _interactable?: boolean
+  _sliderLike?: boolean
 }
 
 interface ResolvedUiElementContext {
@@ -46,9 +47,22 @@ interface ResolvedUiElementContext {
   index: number
 }
 
+interface UiResolution {
+  width?: number
+  height?: number
+}
+
 
 export class ToolsInteract {
   private static readonly _maxResolvedUiElements = 256
+  private static readonly _sliderSearchLookahead = 8
+  private static readonly _sliderNegativeGapTolerancePx = 32
+  private static readonly _sliderPositiveGapLimitPx = 640
+  private static readonly _sliderTrackMinLengthPx = 220
+  private static readonly _sliderTrackMaxThicknessPx = 180
+  private static readonly _sliderTrackLengthRatio = 0.18
+  private static readonly _sliderTrackThicknessRatio = 0.08
+  private static readonly _sliderLabelWidthRatio = 1.5
   private static _resolvedUiElements = new Map<string, ResolvedUiElementContext>()
 
   private static _normalize(s: any): string {
@@ -240,6 +254,78 @@ export class ToolsInteract {
     return best
   }
 
+  private static _resolveNearbyActionableControl(
+    elements: UiElement[],
+    chosen: { el: UiElement, idx: number } | null,
+    screen?: UiResolution | null
+  ): { el: UiElement, idx: number, sliderLike?: boolean } | null {
+    if (!chosen) return null
+
+    const labelBounds = ToolsInteract._normalizeBounds(chosen.el.bounds)
+    if (!labelBounds) return null
+
+    const [labelLeft, labelTop, labelRight, labelBottom] = labelBounds
+    const labelWidth = labelRight - labelLeft
+    const labelHeight = labelBottom - labelTop
+    const screenWidth = Number(screen?.width) > 0 ? Number(screen?.width) : 0
+    const screenHeight = Number(screen?.height) > 0 ? Number(screen?.height) : 0
+    const minTrackLengthPx = Math.max(
+      ToolsInteract._sliderTrackMinLengthPx,
+      screenWidth > 0 ? Math.floor(screenWidth * ToolsInteract._sliderTrackLengthRatio) : 0,
+      screenHeight > 0 ? Math.floor(screenHeight * ToolsInteract._sliderTrackLengthRatio) : 0
+    )
+    const maxTrackThicknessPx = Math.max(
+      ToolsInteract._sliderTrackMaxThicknessPx,
+      screenWidth > 0 ? Math.floor(screenWidth * ToolsInteract._sliderTrackThicknessRatio) : 0,
+      screenHeight > 0 ? Math.floor(screenHeight * ToolsInteract._sliderTrackThicknessRatio) : 0
+    )
+
+    let best: { el: UiElement, idx: number, sliderLike?: boolean } | null = null
+    let bestScore = Infinity
+
+    for (let i = chosen.idx + 1; i < Math.min(elements.length, chosen.idx + ToolsInteract._sliderSearchLookahead); i++) {
+      const candidate = elements[i]
+      if (!candidate || !(candidate.clickable || candidate.focusable) || candidate.visible === false) continue
+
+      const candidateBounds = ToolsInteract._normalizeBounds(candidate.bounds)
+      if (!candidateBounds) continue
+
+      const [left, top, right] = candidateBounds
+      const width = right - left
+      const height = candidateBounds[3] - top
+      const verticalGap = top - labelBottom
+      if (verticalGap < -ToolsInteract._sliderNegativeGapTolerancePx || verticalGap > ToolsInteract._sliderPositiveGapLimitPx) continue
+
+      const horizontalOverlap = Math.min(labelRight, right) - Math.max(labelLeft, left)
+      if (horizontalOverlap < -ToolsInteract._sliderNegativeGapTolerancePx) continue
+
+      const candidateText = ToolsInteract._normalize(candidate.text ?? candidate.label ?? candidate.value ?? '')
+      const candidateContent = ToolsInteract._normalize(candidate.contentDescription ?? candidate.contentDesc ?? candidate.accessibilityLabel ?? '')
+      const candidateClass = ToolsInteract._normalize(candidate.type ?? candidate.class ?? '')
+
+      let score = verticalGap
+      const horizontalTrackLike =
+        width >= Math.max(minTrackLengthPx, Math.floor(labelWidth * ToolsInteract._sliderLabelWidthRatio)) &&
+        height <= maxTrackThicknessPx
+      const verticalTrackLike =
+        height >= Math.max(minTrackLengthPx, Math.floor(labelHeight * ToolsInteract._sliderLabelWidthRatio)) &&
+        width <= maxTrackThicknessPx
+      const trackLike = /slider|seek|range/i.test(candidateClass) || horizontalTrackLike || verticalTrackLike
+      if (!candidateText && !candidateContent) score -= 18
+      if (trackLike) score -= 30
+      if (/view|layout|group|frame/i.test(candidateClass)) score -= 10
+      if (width > labelWidth * ToolsInteract._sliderLabelWidthRatio) score -= 8
+      if (candidateText || candidateContent) score += 20
+
+      if (score < bestScore) {
+        bestScore = score
+        best = { el: candidate, idx: i, sliderLike: trackLike }
+      }
+    }
+
+    return best
+  }
+
 
   private static async getInteractionService(platform?: 'android' | 'ios', deviceId?: string) {
     const effectivePlatform = platform || 'android'
@@ -347,6 +433,7 @@ export class ToolsInteract {
 
     let best: UiElement | null = null
     let bestScore = 0
+    let lastTree: any = null
 
     const scoreElement = (el: UiElement | null) => {
       if (!el || !el.visible) return 0
@@ -380,7 +467,8 @@ export class ToolsInteract {
 
     while (Date.now() <= deadline) {
       try {
-        const tree = await ToolsObserve.getUITreeHandler({ platform, deviceId })
+      const tree = await ToolsObserve.getUITreeHandler({ platform, deviceId })
+      lastTree = tree
         if (tree && Array.isArray((tree as any).elements)) {
           const elements = ((tree as any).elements as UiElement[])
           for (let i = 0; i < elements.length; i++) {
@@ -407,8 +495,8 @@ export class ToolsInteract {
 
     // If the best match is not interactable, try to resolve an actionable ancestor.
     try {
-      const tree = await ToolsObserve.getUITreeHandler({ platform, deviceId }) as any
-      const elements = (tree && Array.isArray(tree.elements)) ? (tree.elements as UiElement[]) : []
+      const elements = (lastTree && Array.isArray(lastTree.elements)) ? (lastTree.elements as UiElement[]) : []
+      const screen = lastTree?.resolution && typeof lastTree.resolution === 'object' ? lastTree.resolution as UiResolution : null
       let chosen = best as any
       const childBounds = Array.isArray(chosen?.bounds) ? chosen.bounds : null
 
@@ -465,6 +553,16 @@ export class ToolsInteract {
         // small score bump to reflect actionability
         bestScore = Math.min(1, bestScore + 0.02)
       }
+
+      if (best && !(best.clickable || best.focusable)) {
+        const nearbyActionable = ToolsInteract._resolveNearbyActionableControl(elements, { el: best, idx: best._index ?? elements.indexOf(best) }, screen)
+        if (nearbyActionable) {
+          best = nearbyActionable.el
+          best._index = nearbyActionable.idx
+          best._interactable = true
+          best._sliderLike = nearbyActionable.sliderLike
+        }
+      }
     } catch (e) { console.error('Error resolving ancestor:', e) }
 
     if (!best) return { found: false, error: 'Element not found' }
@@ -483,8 +581,18 @@ export class ToolsInteract {
       tapCoordinates,
       telemetry: {
         matchedIndex: best?._index ?? null,
-        matchedInteractable: !!best?._interactable
+        matchedInteractable: !!best?._interactable,
+        sliderLike: !!best?._sliderLike
       }
+    }
+    if (best?._sliderLike) {
+      const isVertical = !!boundsObj && (boundsObj.bottom - boundsObj.top) > (boundsObj.right - boundsObj.left)
+      const interactionHint = {
+        kind: 'slider',
+        axis: isVertical ? 'vertical' : 'horizontal',
+        trackBounds: boundsObj
+      }
+      ;(outEl as any).interactionHint = interactionHint
     }
     const scoreVal = Math.min(1, Number(bestScore.toFixed(3)))
     return { found: true, element: outEl, score: scoreVal, confidence: scoreVal }

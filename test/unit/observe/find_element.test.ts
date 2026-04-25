@@ -75,13 +75,72 @@ async function run() {
     assert.ok(pass4, 'Child text should resolve to a clickable parent ancestor')
     process.stdout.write('Test 4: ' + (pass4 ? 'PASS' : 'FAIL') + '\n');
 
-    // Test 5: not found
-    ;(ToolsObserve as any).getUITreeHandler = async () => ({ device: { platform: 'android', id: 'mock' }, screen: '', resolution: { width: 1080, height: 1920 }, elements: [] })
-    const res5: any = await ToolsInteract.findElementHandler({ query: 'nope', exact: false, platform: 'android', timeoutMs: 300 })
+    // Test 5: duration label should resolve to the nearby slider control
+    ;(ToolsObserve as any).getUITreeHandler = async () => ({
+      device: { platform: 'android', id: 'mock' },
+      screen: '',
+      resolution: { width: 1080, height: 1920 },
+      elements: [
+        { text: 'Duration: 5 min', type: 'android.widget.TextView', contentDescription: null, clickable: false, enabled: true, visible: true, bounds: [10,10,260,50], resourceId: null },
+        { text: null, type: 'android.view.View', contentDescription: null, clickable: true, enabled: true, visible: true, bounds: [10,60,1040,140], resourceId: null }
+      ]
+    })
+
+    const res5: any = await ToolsInteract.findElementHandler({ query: 'duration', exact: false, platform: 'android', timeoutMs: 300 })
     process.stdout.write('res5 ' + JSON.stringify(res5, null, 2) + '\n');
-    const pass5 = res5.found === false
-    assert.ok(pass5, 'Missing elements should return found=false')
+    const pass5 = res5.found === true && res5.element && res5.element.clickable === true && res5.element.bounds && res5.element.bounds.top === 60 && res5.element.bounds.bottom === 140
+    assert.ok(pass5, 'Duration label should resolve to the slider control below it')
     process.stdout.write('Test 5: ' + (pass5 ? 'PASS' : 'FAIL') + '\n');
+
+    // Test 6: prefer track-like control over a closer texty sibling
+    ;(ToolsObserve as any).getUITreeHandler = async () => ({
+      device: { platform: 'android', id: 'mock' },
+      screen: '',
+      resolution: { width: 1080, height: 1920 },
+      elements: [
+        { text: 'Duration: 5 min', type: 'android.widget.TextView', contentDescription: null, clickable: false, enabled: true, visible: true, bounds: [10,10,260,50], resourceId: null },
+        { text: 'Reset', type: 'android.widget.Button', contentDescription: null, clickable: true, enabled: true, visible: true, bounds: [10,60,150,120], resourceId: 'btn_reset' },
+        { text: null, type: 'android.view.View', contentDescription: null, clickable: true, enabled: true, visible: true, bounds: [10,130,1040,210], resourceId: null }
+      ]
+    })
+
+    const res6: any = await ToolsInteract.findElementHandler({ query: 'duration', exact: false, platform: 'android', timeoutMs: 300 })
+    process.stdout.write('res6 ' + JSON.stringify(res6, null, 2) + '\n');
+    const pass6 = res6.found === true && res6.element && res6.element.clickable === true && res6.element.bounds && res6.element.bounds.top === 130 && res6.element.bounds.bottom === 210
+    assert.ok(pass6, 'Duration lookup should prefer the track-like control over a closer text button')
+    process.stdout.write('Test 6: ' + (pass6 ? 'PASS' : 'FAIL') + '\n');
+    const pass6b = res6.element && res6.element.telemetry && res6.element.telemetry.sliderLike === true && res6.element.interactionHint && res6.element.interactionHint.kind === 'slider'
+    assert.ok(pass6b, 'Duration lookup should include slider-specific telemetry')
+    process.stdout.write('Test 6b: ' + (pass6b ? 'PASS' : 'FAIL') + '\n');
+
+    // Test 7: prefer vertical track-like control over a closer text button
+    ;(ToolsObserve as any).getUITreeHandler = async () => ({
+      device: { platform: 'android', id: 'mock' },
+      screen: '',
+      resolution: { width: 1080, height: 2400 },
+      elements: [
+        { text: 'Duration: 5 min', type: 'android.widget.TextView', contentDescription: null, clickable: false, enabled: true, visible: true, bounds: [10,10,260,50], resourceId: null },
+        { text: 'Reset', type: 'android.widget.Button', contentDescription: null, clickable: true, enabled: true, visible: true, bounds: [10,60,150,120], resourceId: 'btn_reset' },
+        { text: null, type: 'android.view.View', contentDescription: null, clickable: true, enabled: true, visible: true, bounds: [270,20,350,1040], resourceId: null }
+      ]
+    })
+
+    const res7: any = await ToolsInteract.findElementHandler({ query: 'duration', exact: false, platform: 'android', timeoutMs: 300 })
+    process.stdout.write('res7 ' + JSON.stringify(res7, null, 2) + '\n');
+    const pass7 = res7.found === true && res7.element && res7.element.clickable === true && res7.element.bounds && res7.element.bounds.left === 270 && res7.element.bounds.right === 350
+    assert.ok(pass7, 'Duration lookup should prefer a vertical track-like control')
+    process.stdout.write('Test 7: ' + (pass7 ? 'PASS' : 'FAIL') + '\n');
+    const pass7b = res7.element && res7.element.interactionHint && res7.element.interactionHint.axis === 'vertical'
+    assert.ok(pass7b, 'Vertical sliders should report a vertical interaction axis')
+    process.stdout.write('Test 7b: ' + (pass7b ? 'PASS' : 'FAIL') + '\n');
+
+    // Test 8: not found
+    ;(ToolsObserve as any).getUITreeHandler = async () => ({ device: { platform: 'android', id: 'mock' }, screen: '', resolution: { width: 1080, height: 1920 }, elements: [] })
+    const res8: any = await ToolsInteract.findElementHandler({ query: 'nope', exact: false, platform: 'android', timeoutMs: 300 })
+    process.stdout.write('res8 ' + JSON.stringify(res8, null, 2) + '\n');
+    const pass8 = res8.found === false
+    assert.ok(pass8, 'Missing elements should return found=false')
+    process.stdout.write('Test 8: ' + (pass8 ? 'PASS' : 'FAIL') + '\n');
 
   } finally {
     ;(ToolsObserve as any).getUITreeHandler = origGetTree
