@@ -36,6 +36,7 @@ interface UiElement {
   parentId?: number | string | null
   _index?: number
   _interactable?: boolean
+  _sliderLike?: boolean
 }
 
 interface ResolvedUiElementContext {
@@ -234,6 +235,58 @@ export class ToolsInteract {
           bestArea = area
           best = { el, idx: i }
         }
+      }
+    }
+
+    return best
+  }
+
+  private static _resolveNearbyActionableControl(
+    elements: UiElement[],
+    chosen: { el: UiElement, idx: number } | null
+  ): { el: UiElement, idx: number, sliderLike?: boolean } | null {
+    if (!chosen) return null
+
+    const labelBounds = ToolsInteract._normalizeBounds(chosen.el.bounds)
+    if (!labelBounds) return null
+
+    const [labelLeft, , labelRight, labelBottom] = labelBounds
+    const labelWidth = labelRight - labelLeft
+
+    let best: { el: UiElement, idx: number, sliderLike?: boolean } | null = null
+    let bestScore = Infinity
+
+    for (let i = chosen.idx + 1; i < Math.min(elements.length, chosen.idx + 8); i++) {
+      const candidate = elements[i]
+      if (!candidate || !(candidate.clickable || candidate.focusable) || candidate.visible === false) continue
+
+      const candidateBounds = ToolsInteract._normalizeBounds(candidate.bounds)
+      if (!candidateBounds) continue
+
+      const [left, top, right] = candidateBounds
+      const width = right - left
+      const height = candidateBounds[3] - top
+      const verticalGap = top - labelBottom
+      if (verticalGap < -32 || verticalGap > 640) continue
+
+      const horizontalOverlap = Math.min(labelRight, right) - Math.max(labelLeft, left)
+      if (horizontalOverlap < -32) continue
+
+      const candidateText = ToolsInteract._normalize(candidate.text ?? candidate.label ?? candidate.value ?? '')
+      const candidateContent = ToolsInteract._normalize(candidate.contentDescription ?? candidate.contentDesc ?? candidate.accessibilityLabel ?? '')
+      const candidateClass = ToolsInteract._normalize(candidate.type ?? candidate.class ?? '')
+
+      let score = verticalGap
+      const trackLike = /slider|seek|range/i.test(candidateClass) || (width >= Math.max(220, labelWidth * 1.5) && height <= 180)
+      if (!candidateText && !candidateContent) score -= 18
+      if (trackLike) score -= 30
+      if (/view|layout|group|frame/i.test(candidateClass)) score -= 10
+      if (width > labelWidth * 1.5) score -= 8
+      if (candidateText || candidateContent) score += 20
+
+      if (score < bestScore) {
+        bestScore = score
+        best = { el: candidate, idx: i, sliderLike: trackLike }
       }
     }
 
@@ -465,6 +518,16 @@ export class ToolsInteract {
         // small score bump to reflect actionability
         bestScore = Math.min(1, bestScore + 0.02)
       }
+
+      if (best && !(best.clickable || best.focusable)) {
+        const nearbyActionable = ToolsInteract._resolveNearbyActionableControl(elements, { el: best, idx: best._index ?? elements.indexOf(best) })
+        if (nearbyActionable) {
+          best = nearbyActionable.el
+          best._index = nearbyActionable.idx
+          best._interactable = true
+          best._sliderLike = nearbyActionable.sliderLike
+        }
+      }
     } catch (e) { console.error('Error resolving ancestor:', e) }
 
     if (!best) return { found: false, error: 'Element not found' }
@@ -483,7 +546,15 @@ export class ToolsInteract {
       tapCoordinates,
       telemetry: {
         matchedIndex: best?._index ?? null,
-        matchedInteractable: !!best?._interactable
+        matchedInteractable: !!best?._interactable,
+        sliderLike: !!best?._sliderLike
+      }
+    }
+    if (best?._sliderLike) {
+      (outEl as any).interactionHint = {
+        kind: 'slider',
+        axis: 'horizontal',
+        trackBounds: boundsObj
       }
     }
     const scoreVal = Math.min(1, Number(bestScore.toFixed(3)))
