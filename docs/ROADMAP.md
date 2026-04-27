@@ -1,6 +1,6 @@
-# Mobile Debug MCP Prioritized Roadmap
+# Mobile Debug MCP Roadmap
 
-## Prioritization Criteria
+## Planning Principles
 
 Ordered by:
 
@@ -26,33 +26,45 @@ Higher task success with fewer retries.
 
 ---
 
-# Completed
+# Roadmap Status Overview
 
-These priorities are done and kept here for history:
+## Completed Foundations
 
-- Priority 1 — Stronger State Verification
-- Priority 2 — Richer Element Identity
+| Capability | Status | Notes |
+|-----------|--------|-------|
+| Stronger State Verification | Complete | Foundational verification layer shipped |
+| Richer Element Identity | Complete | Identity and selector confidence foundations shipped |
 
-Completion notes:
+## Current Focus
 
-- State-aware verification is now implemented and wired through the tool surface.
-- Platform-native element metadata and selector-confidence hints are now part of the runtime contract.
+- Wait and Synchronization Reliability
+
+## Upcoming Work
+
+- Long Press Gesture
+- Better Compose / Custom Control Semantics
+
+## Later Horizon
+
+- Pinch to Zoom
+- Action Trace Correlation
 
 ---
 
-# Priority 1 — Stronger State Verification
+# Stronger State Verification
 
 ## Why first
 Highest leverage improvement.
 
-**Status:** Completed
+**Status:** Completed  
+**Priority:** P1
 
 Most failures are not “can’t act,” they’re:
 - uncertain state
 - weak verification
 - retry loops caused by inference
 
-## Deliver
+## Scope
 - Direct readable control values
 - Expanded `expect_*` verification
 - Move from inference to state introspection
@@ -60,7 +72,7 @@ Most failures are not “can’t act,” they’re:
 ## Expected Impact
 Very high.
 
-## Done Criteria
+## Exit Criteria
 - Control state readable for core widgets (toggle, slider, input, dropdown)
 - New expect_* state verifiers implemented
 - Agents can verify state without visual inference in representative flows
@@ -79,19 +91,20 @@ Blocks or strengthens:
 
 ---
 
-# Priority 2 — Richer Element Identity
+# Richer Element Identity
 
 ## Why second
 Directly reduces selector brittleness.
 
-**Status:** Completed
+**Status:** Completed  
+**Priority:** P2
 
 Improves:
 - targeting stability
 - repeatability
 - agent confidence
 
-## Deliver
+## Scope
 - Stable IDs / test tags prioritization
 - Selector confidence metadata
 - Preferred selector hierarchy
@@ -99,7 +112,7 @@ Improves:
 ## Expected Impact
 Very high.
 
-## Done Criteria
+## Exit Criteria
 - Stable selector preference order implemented
 - Test tags/resource IDs surfaced where available
 - Selector confidence metadata available
@@ -118,10 +131,13 @@ Blocks or strengthens:
 
 ---
 
-# Priority 3 — Wait and Synchronization Reliability
+# Wait and Synchronization Reliability
 
 ## Why third
 Reliable async synchronization is foundational for agent success and should precede gesture expansion.
+
+**Status:** Completed  
+**Priority:** P3
 
 Addresses failures where agents:
 - skip UI waits after actions
@@ -129,7 +145,7 @@ Addresses failures where agents:
 - struggle with in-place UI updates
 - misread stale UI snapshots
 
-## Deliver
+## Scope
 - UI-first synchronization policy guidance
 - wait_for_ui_change (hierarchy diff based waiting)
 - Structured loading state detection
@@ -139,7 +155,7 @@ Addresses failures where agents:
 ## Expected Impact
 Very high.
 
-## Done Criteria
+## Exit Criteria
 - wait_for_ui_change implemented
 - Loading state detection available for representative controls
 - Snapshot revision or staleness metadata exposed
@@ -163,10 +179,13 @@ Blocks or strengthens:
 
 ---
 
-# Priority 4 — Long Press Gesture
+# Long Press Gesture
 
 ## Why fourth
 High utility, relatively low complexity.
+
+**Status:** Completed  
+**Priority:** P4
 
 Unlocks many currently awkward interactions:
 
@@ -177,7 +196,7 @@ Unlocks many currently awkward interactions:
 
 Broad usefulness.
 
-## Deliver
+## Scope
 New tool:
 
 ```json
@@ -191,7 +210,7 @@ Verification alignment:
 ## Expected Impact
 High.
 
-## Done Criteria
+## Exit Criteria
 - long_press tool implemented across supported platforms
 - Duration defaults and overrides supported
 - Verification patterns for long press outcomes defined
@@ -211,10 +230,13 @@ Strengthens:
 
 ---
 
-# Priority 5 — Better Compose / Custom Control Semantics
+# Better Compose / Custom Control Semantics
 
 ## Why fifth
 Important, but strengthened by priorities 1–4 first.
+
+**Status:** Completed  
+**Priority:** P5
 
 Semantics become more useful once:
 - identity is stronger
@@ -222,7 +244,7 @@ Semantics become more useful once:
 - gestures are richer
 - synchronization is more reliable
 
-## Deliver
+## Scope
 - Composite control traits
 - Control role enrichment (adjustable, expandable, selectable_group)
 - Interaction contracts metadata
@@ -233,7 +255,7 @@ Semantics become more useful once:
 ## Expected Impact
 High.
 
-## Done Criteria
+## Exit Criteria
 - Semantic traits implemented for major custom control classes
 - Interaction contracts surfaced in snapshot model
 - Confidence model defined for derived semantics
@@ -253,10 +275,13 @@ Depends on:
 
 ---
 
-# Priority 6 — Pinch to Zoom
+# Pinch to Zoom
 
 ## Why sixth
 Valuable, but narrower than long press.
+
+**Status:** Completed  
+**Priority:** P6
 
 Applies mainly to:
 - maps
@@ -266,7 +291,7 @@ Applies mainly to:
 
 Useful, but less universal.
 
-## Deliver
+## Scope
 
 ```json
 pinch_to_zoom(target, scale, center?)
@@ -279,7 +304,7 @@ Verification:
 ## Expected Impact
 Medium-high.
 
-## Done Criteria
+## Exit Criteria
 - pinch_to_zoom implemented
 - Zoom in/out flows supported
 - Verification primitives for viewport or zoom state available
@@ -297,22 +322,25 @@ Depends on:
 
 ---
 
-# Priority 7 — Action Trace Correlation
+# Action Trace Correlation
 
 ## Why seventh
 Very valuable for debugging,
 but less critical than improving control success first.
 
+**Status:** Completed  
+**Priority:** P7
+
 Improves diagnosis more than task completion.
 
-## Deliver
+## Scope
 - Action correlation metadata
 - UI/network/log linkage
 
 ## Expected Impact
 Medium-high.
 
-## Done Criteria
+## Exit Criteria
 - Action correlation model defined
 - UI/network/log linkage captured for representative actions
 - Correlation metadata exposed to agents
@@ -331,7 +359,7 @@ Depends on:
 
 ---
 
-# Delivery Waves
+# Roadmap Sequence
 
 ## Dependency Summary
 Foundational sequence:
@@ -351,7 +379,7 @@ Layer 3 (Interaction Expansion)
 Layer 4 (Observability)
 - Priority 7 depends on 1,2,3
 
-## Wave 1 (Immediate)
+## Wave 1 (Current Focus)
 - Stronger State Verification
 - Richer Element Identity
 - Wait and Synchronization Reliability
@@ -361,7 +389,7 @@ Make core loop more reliable.
 
 ---
 
-## Wave 2
+## Wave 2 (Expansion)
 - Long Press
 - Better Compose Semantics
 
@@ -370,7 +398,7 @@ Expand interaction capability.
 
 ---
 
-## Wave 3
+## Wave 3 (Advanced)
 - Pinch to Zoom
 - Action Trace Correlation
 
@@ -379,7 +407,7 @@ Advanced gestures + observability.
 
 ---
 
-# Priority Stack Summary
+# Capability Sequence
 
 Execution Order:
 1. Stronger State Verification
@@ -397,7 +425,7 @@ Rationale:
 
 ---
 
-## Explicitly Deferred
+## Future Considerations
 Still out of scope:
 
 - Recovery planning logic
