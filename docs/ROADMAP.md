@@ -15,6 +15,7 @@ Track roadmap impact across releases using:
 - Retry reduction rate (% fewer action retries per task)
 - Element match success rate (% successful element targeting)
 - Verification success rate (% expect_* checks passing first attempt)
+- Wait success rate for asynchronous UI flows
 - Custom control interaction success rate
 - Gesture success rate
 - Mean time to root cause during debugging
@@ -56,9 +57,9 @@ Very high.
 
 ## Dependencies
 Blocks or strengthens:
-- Priority 4 — Better Compose / Custom Control Semantics
-- Priority 5 — Pinch to Zoom verification
-- Priority 6 — Action Trace Correlation
+- Priority 5 — Better Compose / Custom Control Semantics
+- Priority 6 — Pinch to Zoom verification
+- Priority 7 — Action Trace Correlation
 
 ---
 
@@ -93,15 +94,60 @@ Very high.
 
 ## Dependencies
 Blocks or strengthens:
-- Priority 3 — Long Press targeting reliability
-- Priority 4 — Better Compose / Custom Control Semantics
-- Priority 5 — Pinch to Zoom targeting
+- Priority 4 — Long Press targeting reliability
+- Priority 5 — Better Compose / Custom Control Semantics
+- Priority 6 — Pinch to Zoom targeting
 
 ---
 
-# Priority 3 — Long Press Gesture
+# Priority 3 — Wait and Synchronization Reliability
 
 ## Why third
+Reliable async synchronization is foundational for agent success and should precede gesture expansion.
+
+Addresses failures where agents:
+- skip UI waits after actions
+- rely on network/log signals too early
+- struggle with in-place UI updates
+- misread stale UI snapshots
+
+## Deliver
+- UI-first synchronization policy guidance
+- wait_for_ui_change (hierarchy diff based waiting)
+- Structured loading state detection
+- Snapshot revision / staleness metadata
+- Compose-aware wait robustness improvements
+
+## Expected Impact
+Very high.
+
+## Done Criteria
+- wait_for_ui_change implemented
+- Loading state detection available for representative controls
+- Snapshot revision or staleness metadata exposed
+- UI-first sync guidance added to spec guardrails
+- In-place update waits validated on benchmark flows
+
+## Success Metrics
+- Reduced missed async UI transitions
+- Fewer retries caused by premature actions
+- Higher wait success rate for dynamic UI flows
+- Lower fallback usage to network/log checks
+
+## Dependencies
+Depends on:
+- Priority 1 — Stronger State Verification
+- Priority 2 — Richer Element Identity
+
+Blocks or strengthens:
+- Priority 5 — Better Compose / Custom Control Semantics
+- Priority 7 — Action Trace Correlation
+
+---
+
+# Priority 4 — Long Press Gesture
+
+## Why fourth
 High utility, relatively low complexity.
 
 Unlocks many currently awkward interactions:
@@ -143,19 +189,20 @@ Depends on:
 - Priority 2 — Richer Element Identity
 
 Strengthens:
-- Priority 4 semantics interaction contracts
+- Priority 5 semantics interaction contracts
 
 ---
 
-# Priority 4 — Better Compose / Custom Control Semantics
+# Priority 5 — Better Compose / Custom Control Semantics
 
-## Why fourth
-Important, but strengthened by priorities 1–3 first.
+## Why fifth
+Important, but strengthened by priorities 1–4 first.
 
 Semantics become more useful once:
 - identity is stronger
 - verification is stronger
 - gestures are richer
+- synchronization is more reliable
 
 ## Deliver
 - Composite control traits
@@ -163,6 +210,7 @@ Semantics become more useful once:
 - Interaction contracts metadata
 - Custom widget gesture affordance hints
 - Semantic confidence annotations
+- Compose-aware selectors for waits (merged semantics and element relationships)
 
 ## Expected Impact
 High.
@@ -182,13 +230,14 @@ High.
 Depends on:
 - Priority 1 — Stronger State Verification
 - Priority 2 — Richer Element Identity
-- Priority 3 — Long Press
+- Priority 3 — Wait and Synchronization Reliability
+- Priority 4 — Long Press
 
 ---
 
-# Priority 5 — Pinch to Zoom
+# Priority 6 — Pinch to Zoom
 
-## Why fifth
+## Why sixth
 Valuable, but narrower than long press.
 
 Applies mainly to:
@@ -230,9 +279,9 @@ Depends on:
 
 ---
 
-# Priority 6 — Action Trace Correlation
+# Priority 7 — Action Trace Correlation
 
-## Why sixth
+## Why seventh
 Very valuable for debugging,
 but less critical than improving control success first.
 
@@ -260,6 +309,7 @@ Medium-high.
 Depends on:
 - Priority 1 — Stronger State Verification
 - Priority 2 — Richer Element Identity
+- Priority 3 — Wait and Synchronization Reliability
 
 ---
 
@@ -272,17 +322,21 @@ Layer 1 (Foundations)
 - Priority 1
 - Priority 2
 
-Layer 2 (Interaction Expansion)
-- Priority 3 depends on 2
-- Priority 4 depends on 1,2,3
-- Priority 5 depends on 1,2
+Layer 2 (Synchronization)
+- Priority 3 depends on 1,2
 
-Layer 3 (Observability)
+Layer 3 (Interaction Expansion)
+- Priority 4 depends on 2
+- Priority 5 depends on 1,2,3,4
 - Priority 6 depends on 1,2
+
+Layer 4 (Observability)
+- Priority 7 depends on 1,2,3
 
 ## Wave 1 (Immediate)
 - Stronger State Verification
 - Richer Element Identity
+- Wait and Synchronization Reliability
 
 Focus:
 Make core loop more reliable.
@@ -312,15 +366,16 @@ Advanced gestures + observability.
 Execution Order:
 1. Stronger State Verification
 2. Richer Element Identity
-3. Long Press
-4. Better Compose / Custom Control Semantics
-5. Pinch to Zoom
-6. Action Trace Correlation
+3. Wait and Synchronization Reliability
+4. Long Press
+5. Better Compose / Custom Control Semantics
+6. Pinch to Zoom
+7. Action Trace Correlation
 
 Rationale:
-- Priorities 1–2 harden the control/verify loop.
-- Priorities 3–5 expand interaction capability.
-- Priority 6 improves observability after control reliability matures.
+- Priorities 1–3 harden control, verification, and synchronization.
+- Priorities 4–6 expand interaction capability.
+- Priority 7 adds observability once control reliability matures.
 
 ---
 
