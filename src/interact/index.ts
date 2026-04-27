@@ -10,7 +10,9 @@ import type {
   ActionFailureCode,
   ActionTargetResolved,
   ExpectElementVisibleResponse,
+  ExpectStateResponse,
   ExpectScreenResponse,
+  UIElementState,
   TapElementResponse
 } from '../types.js'
 
@@ -37,6 +39,7 @@ interface UiElement {
   _index?: number
   _interactable?: boolean
   _sliderLike?: boolean
+  state?: UIElementState | null
 }
 
 interface ResolvedUiElementContext {
@@ -75,6 +78,45 @@ export class ToolsInteract {
     const normalized = bounds.slice(0, 4).map((value: any) => Number(value))
     if (normalized.some((value: number) => Number.isNaN(value))) return null
     return normalized as [number, number, number, number]
+  }
+
+  private static _matchesSelector(el: UiElement, selector?: { text?: string, resource_id?: string, accessibility_id?: string, contains?: boolean }): boolean {
+    if (!selector) return false
+    const normalize = ToolsInteract._normalize
+    const containsFlag = !!selector.contains
+    const text = normalize(el.text ?? el.label ?? el.value ?? '')
+    const resourceId = normalize(el.resourceId ?? el.resourceID ?? el.id ?? '')
+    const accessibilityId = normalize(el.contentDescription ?? el.contentDesc ?? el.accessibilityLabel ?? el.label ?? '')
+
+    if (selector.text !== undefined && selector.text !== null) {
+      const q = normalize(selector.text)
+      if (containsFlag ? !text.includes(q) : text !== q) return false
+    }
+
+    if (selector.resource_id !== undefined && selector.resource_id !== null) {
+      const q = normalize(selector.resource_id)
+      if (containsFlag ? !resourceId.includes(q) : resourceId !== q) return false
+    }
+
+    if (selector.accessibility_id !== undefined && selector.accessibility_id !== null) {
+      const q = normalize(selector.accessibility_id)
+      if (containsFlag ? !accessibilityId.includes(q) : accessibilityId !== q) return false
+    }
+
+    return true
+  }
+
+  private static _findFirstMatchingElement(
+    elements: UiElement[],
+    selector?: { text?: string, resource_id?: string, accessibility_id?: string, contains?: boolean }
+  ): { el: UiElement, idx: number } | null {
+    if (!selector) return null
+    for (let i = 0; i < elements.length; i++) {
+      const el = elements[i]
+      if (!el) continue
+      if (ToolsInteract._matchesSelector(el, selector)) return { el, idx: i }
+    }
+    return null
   }
 
   private static _isVisibleElement(el: UiElement): boolean {
@@ -154,7 +196,8 @@ export class ToolsInteract {
       accessibility_id: element.contentDescription ?? element.contentDesc ?? element.accessibilityLabel ?? element.label ?? null,
       class: element.type ?? element.class ?? null,
       bounds: ToolsInteract._normalizeBounds(element.bounds),
-      index
+      index,
+      state: element.state ?? null
     }
   }
 
@@ -996,7 +1039,8 @@ export class ToolsInteract {
           accessibility_id: result.element.accessibility_id ?? null,
           class: result.element.class ?? null,
           bounds: result.element.bounds ?? null,
-          index: typeof result.element.index === 'number' ? result.element.index : null
+          index: typeof result.element.index === 'number' ? result.element.index : null,
+          state: (result.element as any).state ?? null
         },
         observed: {
           status: result.status,
@@ -1010,7 +1054,8 @@ export class ToolsInteract {
             accessibility_id: result.element.accessibility_id ?? null,
             class: result.element.class ?? null,
             bounds: result.element.bounds ?? null,
-            index: typeof result.element.index === 'number' ? result.element.index : null
+            index: typeof result.element.index === 'number' ? result.element.index : null,
+            state: (result.element as any).state ?? null
           }
         },
         reason: 'selector is visible'
@@ -1033,6 +1078,198 @@ export class ToolsInteract {
       reason: result?.error?.message ?? 'selector is not visible',
       failure_code: errorCode,
       retryable: errorCode === 'TIMEOUT'
+    }
+  }
+
+  static async expectStateHandler({
+    selector,
+    element_id,
+    property,
+    expected,
+    platform,
+    deviceId
+  }: {
+    selector?: { text?: string, resource_id?: string, accessibility_id?: string, contains?: boolean },
+    element_id?: string,
+    property: string,
+    expected: boolean | number | string | Record<string, unknown>,
+    platform?: 'android' | 'ios',
+    deviceId?: string
+  }): Promise<ExpectStateResponse> {
+    const tree = await ToolsObserve.getUITreeHandler({ platform, deviceId }) as any
+    const elements = Array.isArray(tree?.elements) ? tree.elements as UiElement[] : []
+    const treePlatform = tree?.device?.platform === 'ios' ? 'ios' : (platform || 'android')
+    const treeDeviceId = tree?.device?.id || deviceId
+
+    let matched: { el: UiElement, idx: number } | null = null
+
+    if (element_id) {
+      const resolved = ToolsInteract._resolvedUiElements.get(element_id)
+      if (resolved) {
+        const current = ToolsInteract._findCurrentResolvedElement(elements, treePlatform, treeDeviceId, resolved)
+        if (current) matched = { el: current.el, idx: current.index }
+      }
+    }
+
+    if (!matched && selector) {
+      matched = ToolsInteract._findFirstMatchingElement(elements, selector)
+    }
+
+    if (!matched) {
+      return {
+        success: false,
+        selector,
+        element_id: element_id ?? null,
+        expected_state: { property, expected },
+        reason: 'element not found',
+        failure_code: 'ELEMENT_NOT_FOUND',
+        retryable: true
+      }
+    }
+
+    const resolvedElement = ToolsInteract._resolvedTargetFromElement(
+      ToolsInteract._computeElementId(treePlatform, treeDeviceId, matched.el, matched.idx),
+      matched.el,
+      matched.idx
+    )
+    const observedState = matched.el.state ?? null
+    const actual = observedState?.[property as keyof UIElementState] ?? null
+
+    const compareBoolean = (value: unknown) => typeof value === 'boolean' ? value : null
+    const compareString = (value: unknown) => typeof value === 'string' ? value : null
+    const compareNumber = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : null
+
+    let success = false
+    let reason = ''
+    let rawValue: boolean | number | string | null = null
+    let observedValue: boolean | number | string | Record<string, unknown> | null = actual as any
+
+    switch (property) {
+      case 'checked':
+      case 'focused':
+      case 'expanded':
+      case 'enabled': {
+        const expectedBool = compareBoolean(expected)
+        const actualBool = compareBoolean(actual)
+        if (expectedBool === null) {
+          reason = `expected ${property} must be boolean`
+        } else if (actualBool === null) {
+          reason = `${property} state unavailable`
+        } else {
+          rawValue = actualBool
+          success = actualBool === expectedBool
+          reason = success ? `${property} matches expected value` : `expected ${property}=${expectedBool} but observed ${actualBool}`
+        }
+        observedValue = actualBool
+        break
+      }
+      case 'value':
+      case 'raw_value': {
+        const expectedNumber = compareNumber(expected)
+        const actualNumber = compareNumber(actual)
+        if (expectedNumber !== null && actualNumber !== null) {
+          success = actualNumber === expectedNumber
+          rawValue = actualNumber
+          observedValue = actualNumber
+          reason = success ? 'value matches expected value' : `expected value=${expectedNumber} but observed ${actualNumber}`
+          break
+        }
+        const expectedString = typeof expected === 'string' ? expected : null
+        const actualString = compareString(actual)
+        if (expectedString !== null && actualString !== null) {
+          success = actualString === expectedString
+          rawValue = actualString
+          observedValue = actualString
+          reason = success ? 'value matches expected value' : `expected value=${expectedString} but observed ${actualString}`
+        } else {
+          reason = 'value state unavailable'
+        }
+        break
+      }
+      case 'selected': {
+        const expectedBool = typeof expected === 'boolean' ? expected : null
+        const expectedString = typeof expected === 'string'
+          ? expected
+          : expected && typeof expected === 'object'
+            ? String((expected as { id?: unknown; label?: unknown }).id ?? (expected as { id?: unknown; label?: unknown }).label ?? '')
+            : null
+        if (!observedState || observedState.selected === undefined || observedState.selected === null) {
+          reason = 'selected state unavailable'
+          break
+        }
+        if (expectedBool !== null) {
+          const actualBool = typeof observedState.selected === 'boolean' ? observedState.selected : null
+          if (actualBool === null) {
+            reason = 'selected state is not boolean'
+            break
+          }
+          rawValue = actualBool
+          observedValue = actualBool
+          success = actualBool === expectedBool
+          reason = success ? 'selected matches expected value' : `expected selected=${expectedBool} but observed ${actualBool}`
+          break
+        }
+        const actualSelected = typeof observedState.selected === 'object' && observedState.selected !== null
+          ? String((observedState.selected as { id?: unknown; label?: unknown }).id ?? (observedState.selected as { id?: unknown; label?: unknown }).label ?? '')
+          : String(observedState.selected)
+        const actualString = actualSelected.trim()
+        if (!expectedString) {
+          reason = 'expected selected must be boolean, string, or object with id/label'
+          break
+        }
+        rawValue = actualString
+        observedValue = actualString
+        success = actualString === expectedString
+        reason = success ? 'selected matches expected value' : `expected selected=${expectedString} but observed ${actualString}`
+        break
+      }
+      case 'text_value': {
+        const expectedString = typeof expected === 'string' ? expected : null
+        const actualString = compareString(actual)
+        if (!expectedString) {
+          reason = 'expected text_value must be string'
+        } else if (!actualString) {
+          reason = 'text_value state unavailable'
+        } else {
+          success = actualString === expectedString
+          rawValue = actualString
+          observedValue = actualString
+          reason = success ? 'text_value matches expected value' : `expected text_value=${expectedString} but observed ${actualString}`
+        }
+        break
+      }
+      default: {
+        if (actual !== null && actual !== undefined) {
+          success = actual === expected
+          observedValue = actual as any
+          rawValue = typeof actual === 'string' || typeof actual === 'number' || typeof actual === 'boolean' ? actual : null
+          reason = success ? `${property} matches expected value` : `expected ${property} to match but observed ${String(actual)}`
+        } else {
+          reason = `unsupported or unavailable state property: ${property}`
+        }
+      }
+    }
+
+    if (!success && !reason) {
+      reason = `${property} did not match expected value`
+    }
+
+    return {
+      success,
+      selector,
+      element_id: element_id ?? resolvedElement.elementId,
+      expected_state: { property, expected },
+      element: {
+        ...resolvedElement,
+        state: observedState
+      },
+      observed_state: {
+        property,
+        value: observedValue,
+        ...(rawValue !== null ? { raw_value: rawValue } : {})
+      },
+      reason,
+      ...(success ? {} : { failure_code: 'UNKNOWN', retryable: false })
     }
   }
 

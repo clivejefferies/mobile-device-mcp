@@ -79,6 +79,21 @@ export interface GetCrashResponse {
   crashes: string[];
 }
 
+export interface UIElementState {
+  checked?: boolean | null;
+  selected?: boolean | string | { id: string; label?: string } | null;
+  focused?: boolean | null;
+  expanded?: boolean | null;
+  enabled?: boolean | null;
+  text_value?: string | null;
+  value?: number | string | null;
+  raw_value?: number | string | null;
+  value_range?: {
+    min: number;
+    max: number;
+  } | null;
+}
+
 export interface CaptureAndroidScreenResponse {
   device: DeviceInfo;
   screenshot: string; // base64 encoded string
@@ -116,6 +131,7 @@ export interface UIElement {
   children?: number[];
   center?: [number, number];
   depth?: number;
+  state?: UIElementState | null;
 }
 
 export interface GetUITreeResponse {
@@ -198,6 +214,7 @@ export interface ActionTargetResolved {
   class: string | null;
   bounds: [number, number, number, number] | null;
   index: number | null;
+  state?: UIElementState | null;
 }
 
 export interface ActionExecutionResult {
@@ -257,6 +274,30 @@ export interface ExpectElementVisibleResponse {
   };
   reason?: string;
   failure_code?: 'TIMEOUT' | 'ELEMENT_NOT_FOUND' | 'UNKNOWN';
+  retryable?: boolean;
+}
+
+export interface ExpectStateResponse {
+  success: boolean;
+  selector?: {
+    text?: string;
+    resource_id?: string;
+    accessibility_id?: string;
+    contains?: boolean;
+  };
+  element_id: string | null;
+  expected_state: {
+    property: string;
+    expected: boolean | number | string | Record<string, unknown>;
+  };
+  element?: (ActionTargetResolved & { state?: UIElementState | null }) | null;
+  observed_state?: {
+    property: string;
+    value: boolean | number | string | Record<string, unknown> | null;
+    raw_value?: boolean | number | string | null;
+  };
+  reason?: string;
+  failure_code?: 'ELEMENT_NOT_FOUND' | 'UNKNOWN';
   retryable?: boolean;
 }
 

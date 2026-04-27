@@ -469,6 +469,61 @@ Failure Handling:
     }
   },
   {
+    name: 'expect_state',
+    description: `Purpose:
+Verify a readable UI state property on the currently visible element.
+
+Inputs:
+- selector or element_id
+- property
+- expected
+- platform/deviceId (optional)
+
+Supported properties:
+- checked, selected, focused, expanded, enabled, text_value, value, raw_value
+
+Verification Guidance:
+- Use this when the UI element is visible but its state must also be confirmed
+- Prefer the canonical property names above
+- The tool compares the normalized readable state and returns the observed value when available
+
+Constraints:
+- Returns structured success/failure only
+- Does not infer a state when the property is unavailable
+
+Failure Handling:
+- ELEMENT_NOT_FOUND → re-resolve the element or wait for UI stabilization
+- UNKNOWN → capture a snapshot and stop`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        selector: {
+          type: 'object',
+          properties: {
+            text: { type: 'string' },
+            resource_id: { type: 'string' },
+            accessibility_id: { type: 'string' },
+            contains: { type: 'boolean', default: false }
+          }
+        },
+        element_id: { type: 'string', description: 'Optional previously resolved element identifier.' },
+        property: { type: 'string', description: 'Readable state property to verify.' },
+        expected: {
+          description: 'Expected normalized state value.',
+          oneOf: [
+            { type: 'boolean' },
+            { type: 'number' },
+            { type: 'string' },
+            { type: 'object' }
+          ]
+        },
+        platform: { type: 'string', enum: ['android', 'ios'], description: 'Optional platform override' },
+        deviceId: { type: 'string', description: 'Optional device serial/udid' }
+      },
+      required: ['property', 'expected']
+    }
+  },
+  {
     name: 'wait_for_ui',
     description: `Purpose:
 Resolve elements and/or detect that a UI transition or availability condition has occurred.

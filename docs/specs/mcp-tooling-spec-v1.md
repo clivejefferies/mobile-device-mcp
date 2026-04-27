@@ -40,6 +40,7 @@ Outcome-specific guidance:
 
 - visible navigation expected -> `wait_for_screen_change` (optional) -> `expect_screen`
 - local UI change expected -> `wait_for_ui` (optional) -> `expect_element_visible`
+- readable element state expected -> `wait_for_ui` (optional) -> `expect_state`
 - backend/API activity expected without a visible UI change -> compare `get_screen_fingerprint` before/after, then call `get_network_activity` immediately after the action and `classify_action_outcome` with the observed requests
 
 For backend/API activity, `wait_for_screen_change` is not the right verification tool unless a visible transition is also expected.
@@ -108,6 +109,7 @@ Primary:
 
 - `expect_screen`
 - `expect_element_visible`
+- `expect_state`
 
 ### 5.2 Required Semantics
 
@@ -130,6 +132,7 @@ An `expect_*` tool is applicable when:
 
 - expected destination screen is known -> `expect_screen`
 - expected UI element state is known -> `expect_element_visible`
+- expected readable state property is known -> `expect_state`
 - outcome is explicitly defined or testable
 
 Rules:
@@ -234,6 +237,7 @@ The semantic layer is derived, best-effort, and MUST be generated exclusively fr
 Raw layer contents include:
 
 - UI hierarchy or accessibility tree
+- normalized readable element state where exposed by the platform
 - screenshot when available
 - element-level attributes
 - logs and fingerprint/activity observations

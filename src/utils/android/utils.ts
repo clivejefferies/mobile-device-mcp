@@ -1,4 +1,4 @@
-import { DeviceInfo, UIElement } from "../../types.js"
+import { DeviceInfo, UIElement, UIElementState } from "../../types.js"
 import { promises as fsPromises, existsSync } from 'fs'
 import path from 'path'
 import { detectJavaHome } from '../java.js'
@@ -323,6 +323,68 @@ export function getCenter(bounds: [number, number, number, number]): [number, nu
   return [Math.floor((x1 + x2) / 2), Math.floor((y1 + y2) / 2)];
 }
 
+function parseBooleanAttr(value: unknown): boolean | null {
+  if (value === true || value === 'true') return true
+  if (value === false || value === 'false') return false
+  return null
+}
+
+function parseNumberAttr(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value !== 'string') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function isSliderLikeAndroid(node: any): boolean {
+  const className = String(node['@_class'] || '').toLowerCase()
+  return /seekbar|slider|range|progress/i.test(className)
+}
+
+function extractAndroidState(node: any): UIElementState | null {
+  const checked = parseBooleanAttr(node['@_checked'])
+  const selectedFlag = parseBooleanAttr(node['@_selected'])
+  const focused = parseBooleanAttr(node['@_focused'])
+  const expanded = parseBooleanAttr(node['@_expanded'])
+  const enabled = parseBooleanAttr(node['@_enabled'])
+  const textValue = typeof node['@_text'] === 'string' && node['@_text'].trim().length > 0 ? node['@_text'] : null
+  const state: UIElementState = {}
+
+  if (checked !== null) state.checked = checked
+  if (selectedFlag !== null) {
+    state.selected = textValue || node['@_content-desc'] || true
+  }
+  if (focused !== null) state.focused = focused
+  if (expanded !== null) state.expanded = expanded
+  if (enabled !== null) state.enabled = enabled
+
+  if (textValue && /edittext|textfield|search/i.test(String(node['@_class'] || ''))) {
+    state.text_value = textValue
+  }
+
+  if (isSliderLikeAndroid(node)) {
+    const rawProgress = parseNumberAttr(node['@_progress'])
+    const max = parseNumberAttr(node['@_max'])
+    const fallbackValue = rawProgress ?? parseNumberAttr(node['@_value']) ?? parseNumberAttr(node['@_content-desc'])
+    const numericValue = rawProgress ?? fallbackValue
+    if (numericValue !== null) {
+      state.raw_value = numericValue
+      state.value_range = max !== null && max > 0 ? { min: 0, max } : null
+      state.value = max !== null && max > 0 ? Math.round((numericValue / max) * 100) : numericValue
+    }
+  } else {
+    const numericValue = parseNumberAttr(node['@_value'])
+    if (numericValue !== null) {
+      state.value = numericValue
+      state.raw_value = numericValue
+    } else if (textValue) {
+      state.value = textValue
+    }
+  }
+
+  return Object.keys(state).length > 0 ? state : null
+}
+
 export async function getScreenResolution(deviceId?: string): Promise<{ width: number; height: number }> {
   try {
     const output = await execAdb(['shell', 'wm', 'size'], deviceId);
@@ -339,27 +401,29 @@ export function traverseNode(node: any, elements: UIElement[], parentIndex: numb
 
   let currentIndex = -1;
 
-  if (node['@_class']) {
-    const text = node['@_text'] || null;
-    const contentDescription = node['@_content-desc'] || null;
-    const clickable = node['@_clickable'] === 'true';
-    const bounds = parseBounds(node['@_bounds'] || '[0,0][0,0]');
+    if (node['@_class']) {
+      const text = node['@_text'] || null;
+      const contentDescription = node['@_content-desc'] || null;
+      const clickable = node['@_clickable'] === 'true';
+      const bounds = parseBounds(node['@_bounds'] || '[0,0][0,0]');
+      const state = extractAndroidState(node);
 
-    const isUseful = clickable || (text && text.length > 0) || (contentDescription && contentDescription.length > 0);
+      const isUseful = clickable || (text && text.length > 0) || (contentDescription && contentDescription.length > 0);
 
-    if (isUseful) {
-      const element: UIElement = {
+      if (isUseful) {
+        const element: UIElement = {
         text,
         contentDescription,
         type: node['@_class'] || 'unknown',
         resourceId: node['@_resource-id'] || null,
         clickable,
         enabled: node['@_enabled'] === 'true',
-        visible: true,
-        bounds,
-        center: getCenter(bounds),
-        depth
-      };
+          visible: true,
+          bounds,
+          center: getCenter(bounds),
+          depth,
+          state
+        };
 
       if (parentIndex !== -1) {
         element.parentId = parentIndex;

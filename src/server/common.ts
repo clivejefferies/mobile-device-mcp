@@ -96,7 +96,8 @@ export function normalizeResolvedTarget(value: Partial<ActionTargetResolved> | n
     accessibility_id: value.accessibility_id ?? null,
     class: value.class ?? null,
     bounds: value.bounds ?? null,
-    index: value.index ?? null
+    index: value.index ?? null,
+    state: value.state ?? null
   }
 }
 

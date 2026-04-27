@@ -53,6 +53,7 @@ Preferred verification:
 
 - navigation outcome known -> `expect_screen`
 - local UI change known -> `expect_element_visible`
+- readable element state known -> `expect_state`
 - backend/API activity expected -> `classify_action_outcome` + `get_network_activity`
 
 Use `wait_for_screen_change` only when a visible transition is the expected outcome. If a button should trigger an API request but the screen should stay the same, rely on network activity and classification instead.
@@ -456,6 +457,30 @@ Notes:
 - The tool resolves the selector internally when needed.
 - On failure, `reason` and `observed` tell you whether the selector was missing entirely or present but not yet visible.
 - Use when the screen should remain on the same destination but a specific element should appear or become visible.
+
+---
+
+## expect_state
+
+Deterministically verify a readable state property on a visible element.
+
+Input:
+
+```json
+{
+  "selector": { "text": "Notifications" },
+  "property": "checked",
+  "expected": true,
+  "platform": "android",
+  "deviceId": "emulator-5554"
+}
+```
+
+Notes:
+
+- Use this when the element is visible but its state also matters.
+- Supported properties include `checked`, `selected`, `focused`, `expanded`, `enabled`, `text_value`, `value`, and `raw_value`.
+- The tool compares normalized state and returns the observed value when available.
 
 ---
 
