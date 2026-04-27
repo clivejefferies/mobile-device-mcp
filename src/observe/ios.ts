@@ -87,7 +87,7 @@ function extractIOSState(node: IDBElement, type: string, label: string | null, v
     state.enabled = false
   }
 
-  if (value && /textfield|textfield|search|text/i.test(type)) {
+  if (value && /textfield|search|text/i.test(type)) {
     state.text_value = value
   }
 

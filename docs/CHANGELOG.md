@@ -2,6 +2,9 @@
 
 All notable changes to the **Mobile Debug MCP** project will be documented in this file.
 
+## [0.25.0]
+- Introduces the `expect_state` tool and a standardized state object for UI elements across Android and iOS.
+
 ## [0.24.8]
 - Improved slider interaction
 
