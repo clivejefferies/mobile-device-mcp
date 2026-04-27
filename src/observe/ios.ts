@@ -1,6 +1,6 @@
 import { spawn } from "child_process"
 import { promises as fs } from "fs"
-import { GetLogsResponse, CaptureIOSScreenshotResponse, GetUITreeResponse, UIElement, DeviceInfo } from "../types.js"
+import { GetLogsResponse, CaptureIOSScreenshotResponse, GetUITreeResponse, UIElement, DeviceInfo, UIElementState } from "../types.js"
 import { execCommand, getIOSDeviceMetadata, validateBundleId, getIdbCmd, getXcrunCmd, isIDBInstalled } from "../utils/ios/utils.js"
 import { createWriteStream, promises as fsPromises } from 'fs'
 import path from 'path'
@@ -56,7 +56,64 @@ function getCenter(bounds: [number, number, number, number]): [number, number] {
   return [Math.floor((x1 + x2) / 2), Math.floor((y1 + y2) / 2)];
 }
 
-function traverseIDBNode(node: IDBElement, elements: UIElement[], parentIndex: number = -1, depth: number = 0): number {
+function parseIOSNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value !== 'string') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function isIOSAdjustable(node: IDBElement, type: string, traits: string[]): boolean {
+  return /slider|adjustable|stepper|progress/i.test(type) || traits.some((trait) => /adjustable|slider|progress/i.test(trait))
+}
+
+function extractIOSState(node: IDBElement, type: string, label: string | null, value: string | null, traits: string[]): UIElementState | null {
+  const state: UIElementState = {}
+  const normalizedTraits = traits.map((trait) => String(trait).toLowerCase())
+
+  if (normalizedTraits.some((trait) => /selected/.test(trait))) {
+    state.selected = label || value || true
+  }
+
+  if (normalizedTraits.some((trait) => /focused/.test(trait))) {
+    state.focused = true
+  }
+
+  if (normalizedTraits.some((trait) => /enabled/.test(trait))) {
+    state.enabled = true
+  }
+
+  if (normalizedTraits.some((trait) => /disabled/.test(trait))) {
+    state.enabled = false
+  }
+
+  if (value && /textfield|textfield|search|text/i.test(type)) {
+    state.text_value = value
+  }
+
+  if (isIOSAdjustable(node, type, traits)) {
+    const rawValue = parseIOSNumber(value)
+    if (rawValue !== null) {
+      state.raw_value = rawValue
+      state.value = rawValue >= 0 && rawValue <= 1 ? Math.round(rawValue * 100) : rawValue
+    } else if (value) {
+      state.raw_value = value
+      state.value = value
+    }
+  } else if (value) {
+    const numericValue = parseIOSNumber(value)
+    if (numericValue !== null) {
+      state.value = numericValue
+      state.raw_value = numericValue
+    } else {
+      state.value = value
+    }
+  }
+
+  return Object.keys(state).length > 0 ? state : null
+}
+
+export function traverseIDBNode(node: IDBElement, elements: UIElement[], parentIndex: number = -1, depth: number = 0): number {
   if (!node) return -1;
 
   let currentIndex = -1;
@@ -66,6 +123,7 @@ function traverseIDBNode(node: IDBElement, elements: UIElement[], parentIndex: n
   const value = node.AXValue || null;
   const frame = node.AXFrame || node.frame;
   const traits = node.AXTraits || [];
+  const state = extractIOSState(node, type, label, value, traits);
   
   const clickable = traits.includes("UIAccessibilityTraitButton") || type === "Button" || type === "Cell";
   
@@ -83,7 +141,8 @@ function traverseIDBNode(node: IDBElement, elements: UIElement[], parentIndex: n
       visible: true,
       bounds: bounds,
       center: getCenter(bounds),
-      depth: depth
+      depth: depth,
+      state
     };
 
     if (parentIndex !== -1) {

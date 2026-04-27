@@ -258,6 +258,23 @@ async function handleExpectElementVisible(args: ToolCallArgs) {
   return wrapResponse(res)
 }
 
+async function handleExpectState(args: ToolCallArgs) {
+  const selector = getObjectArg<ExpectElementSelectorArg>(args, 'selector')
+  const element_id = getStringArg(args, 'element_id')
+  const property = requireStringArg(args, 'property')
+  const platform = getStringArg(args, 'platform') as PlatformArg | undefined
+  const deviceId = getStringArg(args, 'deviceId')
+  if (!selector && !element_id) {
+    throw new Error('Missing selector or element_id argument')
+  }
+  if (!Object.prototype.hasOwnProperty.call(args, 'expected')) {
+    throw new Error('Missing expected argument')
+  }
+  const expected = args.expected as boolean | number | string | Record<string, unknown>
+  const res = await ToolsInteract.expectStateHandler({ selector: selector ?? undefined, element_id: element_id ?? undefined, property, expected, platform, deviceId })
+  return wrapResponse(res)
+}
+
 async function handleWaitForUI(args: ToolCallArgs) {
   const selector = getObjectArg<ExpectElementSelectorArg>(args, 'selector')
   const condition = (getStringArg(args, 'condition') as 'exists' | 'not_exists' | 'visible' | 'clickable' | undefined) ?? 'exists'
@@ -458,6 +475,7 @@ export const toolHandlers: Record<string, ToolHandler> = {
   wait_for_screen_change: handleWaitForScreenChange,
   expect_screen: handleExpectScreen,
   expect_element_visible: handleExpectElementVisible,
+  expect_state: handleExpectState,
   wait_for_ui: handleWaitForUI,
   find_element: handleFindElement,
   tap: handleTap,

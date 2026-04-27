@@ -12,6 +12,7 @@ async function run() {
   const originalTapHandler = (ToolsInteract as any).tapHandler
   const originalExpectScreenHandler = (ToolsInteract as any).expectScreenHandler
   const originalExpectElementVisibleHandler = (ToolsInteract as any).expectElementVisibleHandler
+  const originalExpectStateHandler = (ToolsInteract as any).expectStateHandler
   const originalStartApp = AndroidManage.prototype.startApp
   const originalCaptureScreenshotHandler = (ToolsObserve as any).captureScreenshotHandler
   const originalGetUITreeHandler = (ToolsObserve as any).getUITreeHandler
@@ -130,8 +131,8 @@ async function run() {
       selector: { text: 'Ready' },
       element_id: 'el_ready',
       expected_condition: 'visible',
-      element: { elementId: 'el_ready', text: 'Ready', resource_id: null, accessibility_id: null, class: 'TextView', bounds: [0, 0, 10, 10], index: 0 },
-      observed: { status: 'success', matched_count: 1, condition_satisfied: true, selected_index: 0, last_matched_element: { elementId: 'el_ready', text: 'Ready', resource_id: null, accessibility_id: null, class: 'TextView', bounds: [0, 0, 10, 10], index: 0 } },
+      element: { elementId: 'el_ready', text: 'Ready', resource_id: null, accessibility_id: null, class: 'TextView', bounds: [0, 0, 10, 10], index: 0, state: { enabled: true } },
+      observed: { status: 'success', matched_count: 1, condition_satisfied: true, selected_index: 0, last_matched_element: { elementId: 'el_ready', text: 'Ready', resource_id: null, accessibility_id: null, class: 'TextView', bounds: [0, 0, 10, 10], index: 0, state: { enabled: true } } },
       reason: 'selector is visible'
     })
 
@@ -140,6 +141,42 @@ async function run() {
     assert.strictEqual(expectElementPayload.success, true)
     assert.strictEqual(expectElementPayload.element_id, 'el_ready')
     assert.strictEqual(expectElementPayload.expected_condition, 'visible')
+
+    ;(ToolsObserve as any).getUITreeHandler = async () => ({
+      device: { platform: 'android', id: 'mock', osVersion: '14', model: 'Pixel', simulator: true },
+      resolution: { width: 1080, height: 2400 },
+      elements: [{
+        text: 'Notifications',
+        depth: 0,
+        center: { x: 50, y: 20 },
+        state: { checked: true, selected: 'Notifications' }
+      }]
+    })
+
+    ;(ToolsInteract as any).expectStateHandler = async () => ({
+      success: true,
+      selector: { text: 'Notifications' },
+      element_id: 'el_notifications',
+      expected_state: { property: 'checked', expected: true },
+      element: {
+        elementId: 'el_notifications',
+        text: 'Notifications',
+        resource_id: null,
+        accessibility_id: null,
+        class: 'Switch',
+        bounds: [0, 0, 10, 10],
+        index: 0,
+        state: { checked: true, selected: 'Notifications' }
+      },
+      observed_state: { property: 'checked', value: true, raw_value: true },
+      reason: 'checked matches expected value'
+    })
+
+    const expectStateResponse = await handleToolCall('expect_state', { selector: { text: 'Notifications' }, property: 'checked', expected: true })
+    const expectStatePayload = JSON.parse((expectStateResponse as any).content[0].text)
+    assert.strictEqual(expectStatePayload.success, true)
+    assert.strictEqual(expectStatePayload.expected_state.property, 'checked')
+    assert.strictEqual(expectStatePayload.observed_state.value, true)
 
     ;(ToolsInteract as any).tapHandler = async () => {
       throw new Error('boom')
@@ -234,6 +271,7 @@ async function run() {
     ;(ToolsInteract as any).tapHandler = originalTapHandler
     ;(ToolsInteract as any).expectScreenHandler = originalExpectScreenHandler
     ;(ToolsInteract as any).expectElementVisibleHandler = originalExpectElementVisibleHandler
+    ;(ToolsInteract as any).expectStateHandler = originalExpectStateHandler
     AndroidManage.prototype.startApp = originalStartApp
     ;(ToolsObserve as any).captureScreenshotHandler = originalCaptureScreenshotHandler
     ;(ToolsObserve as any).getUITreeHandler = originalGetUITreeHandler
