@@ -448,11 +448,13 @@ async function handleStopLogStream(args: ToolCallArgs) {
 function handleClassifyActionOutcome(args: ToolCallArgs) {
   const uiChanged = requireBooleanArg(args, 'uiChanged')
   const expectedElementVisible = getBooleanArg(args, 'expectedElementVisible')
+  const actionType = getStringArg(args, 'actionType')
   const networkRequests = getArrayArg<ClassifyNetworkRequestArg>(args, 'networkRequests')
   const hasLogErrors = getBooleanArg(args, 'hasLogErrors')
   const result = classifyActionOutcome({
     uiChanged,
     expectedElementVisible: expectedElementVisible ?? null,
+    actionType: actionType ?? null,
     networkRequests: networkRequests ?? null,
     hasLogErrors: hasLogErrors ?? null
   })

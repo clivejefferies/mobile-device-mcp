@@ -17,6 +17,7 @@ Important:
 
 - `wait_for_*` tools must not be used as the final verification of action success when an applicable `expect_*` tool exists.
 - action tools report execution success, not outcome correctness.
+- `classify_action_outcome` should receive the runtime `action_type` when you want routing to distinguish local-state and side-effect actions.
 
 ## tap / swipe / type_text / press_back
 
@@ -54,10 +55,10 @@ Preferred verification:
 - navigation outcome known -> `expect_screen`
 - local UI change known -> `expect_element_visible`
 - readable element state known -> `expect_state`
-- backend/API activity expected -> `classify_action_outcome` + `get_network_activity`
+- backend/API activity expected -> `classify_action_outcome` + optional `get_network_activity` if the UI signal remains ambiguous
 
-Use `wait_for_screen_change` only when a visible transition is the expected outcome. If a button should trigger an API request but the screen should stay the same, rely on network activity and classification instead.
-For backend-only actions, prefer comparing `get_screen_fingerprint` before/after and call `get_network_activity` immediately after the action; do not wait on `wait_for_screen_change` if no visible transition is expected.
+Use `wait_for_screen_change` only when a visible transition is the expected outcome. If a button should trigger an API request but the screen should stay the same, rely on `action_type` plus classification first.
+For backend-only actions, prefer comparing `get_screen_fingerprint` before/after and collect `get_network_activity` immediately after the action only if the result is still ambiguous; do not wait on `wait_for_screen_change` if no visible transition is expected.
 Use `wait_for_ui_change` when the screen stays in place but visible text or element state should change.
 
 ---
@@ -507,17 +508,18 @@ Notes:
 
 ## classify_action_outcome + get_network_activity
 
-Use this pair when the action is expected to trigger network/backend work and the screen may not visibly change.
+Use this pair when the action may trigger network/backend work and the screen may not visibly change.
 
 Pattern:
 
 1. perform the action
 2. call `classify_action_outcome` with `uiChanged` from `wait_for_screen_change` or a screen fingerprint comparison
-3. if the classifier asks for it, call `get_network_activity`
-4. call `classify_action_outcome` again with `networkRequests`
+3. pass the runtime `action_type` value as `actionType`
+4. collect `get_network_activity` only if the action is side-effect oriented and the UI signal remains ambiguous
+5. call `classify_action_outcome` again with `networkRequests` if you collected them
 
 Guidance:
 
 - `uiChanged=true` or `expectedElementVisible=true` means the action outcome is already verified
-- `nextAction="call_get_network_activity"` means the UI signal was inconclusive and the agent should inspect network activity
-- if network requests succeed but the UI stays unchanged, treat the outcome as a backend/API result rather than a screen transition
+- local-state actions should prefer refreshed snapshots, `expect_state`, or `expect_element_visible` over default network inspection
+- network activity is auxiliary evidence, not mandatory proof

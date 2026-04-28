@@ -41,7 +41,7 @@ Outcome-specific guidance:
 - visible navigation expected -> `wait_for_screen_change` (optional) -> `expect_screen`
 - local UI change expected -> `wait_for_ui` (optional) -> `expect_element_visible`
 - readable element state expected -> `wait_for_ui` (optional) -> `expect_state`
-- backend/API activity expected without a visible UI change -> compare `get_screen_fingerprint` before/after, then call `get_network_activity` immediately after the action and `classify_action_outcome` with the observed requests
+- backend/API activity expected without a visible UI change -> compare `get_screen_fingerprint` before/after, then call `classify_action_outcome` with the runtime `action_type`; collect `get_network_activity` only if the result remains ambiguous
 
 For backend/API activity, `wait_for_screen_change` is not the right verification tool unless a visible transition is also expected.
 
@@ -294,11 +294,11 @@ Tool: `classify_action_outcome`
 
 Rules:
 
-- MAY use UI, network, and log signals
+- MAY use UI, action, network, and log signals
 - MUST be deterministic
 - MUST NOT replace `expect_*` tools
 - MUST be treated as a supplementary signal only
-- SHOULD be used with `get_network_activity` when the expected outcome is backend/API activity without a visible UI change
+- SHOULD be used with `get_network_activity` only when the outcome is still ambiguous after routing by `action_type`
 
 It is not a verification mechanism.
 

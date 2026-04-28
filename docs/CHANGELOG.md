@@ -2,6 +2,9 @@
 
 All notable changes to the **Mobile Debug MCP** project will be documented in this file.
 
+## [0.26.1]
+- Fixed overuse of `get_network_activity`
+
 ## [0.26.0]
 - RFC-003 wait/synchronization contract with `snapshot_revision`, `captured_at_ms`, and `loading_state`
 - Added `wait_for_ui_change` for stable in-place UI mutations
