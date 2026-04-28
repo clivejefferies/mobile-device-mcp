@@ -344,7 +344,7 @@ Capabilities:
 Constraints:
 - Does not verify correctness of the resulting state
 - Must not be used alone to confirm action success when an applicable expect_* tool exists
-- Use classify_action_outcome + get_network_activity when the expected outcome is backend/API activity without a visible UI change
+- For backend/API activity without a visible UI change, pass the runtime action_type into classify_action_outcome and collect network evidence only if the result remains ambiguous
 
 Recommended Usage:
 1. Capture or define the expected outcome
@@ -918,26 +918,28 @@ Failure Handling:
     name: 'classify_action_outcome',
     description: `Classify the outcome of the most recent action into exactly one of: success, no_op, backend_failure, ui_failure, unknown.
 
-MUST be called after every action (tap, swipe, type_text, press_back, start_app, etc). Never skip.
-Use this with get_network_activity when the expected outcome is backend/API activity without a visible UI change.
-For backend/API activity, compare get_screen_fingerprint before and after the action and call get_network_activity immediately after the action instead of waiting for wait_for_screen_change.
+Use the runtime action result's \`action_type\` as \`actionType\` so the classifier can distinguish local-state actions from side-effect actions.
+Use this when the intended outcome is not already fully verified by the UI signal alone.
+For backend/API activity, compare get_screen_fingerprint before and after the action and call get_network_activity immediately after the action if the outcome is still ambiguous.
 
 HOW TO GATHER INPUTS before calling:
 1. Call wait_for_screen_change or compare get_screen_fingerprint before/after — set uiChanged accordingly.
 2. If you checked for a specific element with wait_for_ui, set expectedElementVisible.
-3. Do NOT call get_network_activity yet — omit networkRequests on the first call.
+3. Pass actionType from the action response when available.
+4. Only provide networkRequests if you already collected them or want to classify a side-effect action with backend evidence.
 
 RULES (applied in order — stop at first match):
 1. If uiChanged=true OR expectedElementVisible=true → outcome=success
-2. Otherwise this tool returns nextAction="call_get_network_activity" — you MUST call get_network_activity once, then call classify_action_outcome again with the results in networkRequests.
+2. If actionType maps to a local-state action → prefer state-based verification and avoid default network fallback
 3. If any request has status=failure or retryable → outcome=backend_failure
-4. If no requests returned → outcome=no_op
-5. If all requests succeeded → outcome=ui_failure
-6. Otherwise → outcome=unknown
+4. If actionType maps to a side-effect action and no networkRequests were supplied → outcome=unknown
+5. If no requests returned → outcome=no_op
+6. If all requests succeeded → outcome=ui_failure
+7. Otherwise → outcome=unknown
 
 BEHAVIOUR after outcome:
 - success → continue
-- no_op → retry the action once or re-resolve the element
+- no_op → retry with richer state verification or re-resolve the element
 - backend_failure → stop and report the failing endpoint
 - ui_failure → stop and report failure
 - unknown → take one recovery step (e.g. capture_debug_snapshot), then stop`,
@@ -952,9 +954,13 @@ BEHAVIOUR after outcome:
           type: 'boolean',
           description: 'true if the element you expected to appear is now visible (from wait_for_ui). Omit if you did not check for a specific element.'
         },
+        actionType: {
+          type: 'string',
+          description: 'The runtime action_type from the action response (for example tap, tap_element, swipe, type_text, press_back, start_app).'
+        },
         networkRequests: {
           type: 'array',
-          description: 'Pass this only after calling get_network_activity as instructed by nextAction. Also use it when the expected outcome is backend/API activity without a visible UI change.',
+          description: 'Optional network evidence collected after the action. Use it when the expected outcome is backend/API activity or when the UI signal is ambiguous.',
           items: {
             type: 'object',
             properties: {
@@ -976,7 +982,7 @@ BEHAVIOUR after outcome:
     name: 'get_network_activity',
     description: `Returns structured network events captured from platform logs since the last action.
 
-Call this when classify_action_outcome returns nextAction="call_get_network_activity" or immediately after an action whose expected outcome is backend/API activity without a visible UI change.
+Call this immediately after an action when you want backend evidence for a side-effect flow, only if the result is still ambiguous.
 Do not call more than once per action.
 
 Events are filtered to significant (non-background) requests only.

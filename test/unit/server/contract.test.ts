@@ -68,15 +68,17 @@ async function run() {
 
   const classifyActionOutcome = toolDefinitions.find((tool) => tool.name === 'classify_action_outcome')
   assert(classifyActionOutcome, 'classify_action_outcome should be registered')
-  assert.match((classifyActionOutcome as any).description, /backend\/API activity without a visible UI change/i)
-  assert.match((classifyActionOutcome as any).description, /get_network_activity/i)
-  assert.match((classifyActionOutcome as any).description, /immediately after the action/i)
+  assert.match((classifyActionOutcome as any).description, /action_type/i)
+  assert.match((classifyActionOutcome as any).description, /local-state/i)
+  assert.match((classifyActionOutcome as any).description, /side-effect/i)
+  assert.strictEqual((classifyActionOutcome as any).inputSchema.properties.actionType.type, 'string')
+  assert.match((classifyActionOutcome as any).inputSchema.properties.networkRequests.description, /optional network evidence/i)
 
   const getNetworkActivity = toolDefinitions.find((tool) => tool.name === 'get_network_activity')
   assert(getNetworkActivity, 'get_network_activity should be registered')
-  assert.match((getNetworkActivity as any).description, /backend\/API activity without a visible UI change/i)
-  assert.doesNotMatch((getNetworkActivity as any).description, /Call this only when/i)
-  assert.match((getNetworkActivity as any).description, /immediately after an action/i)
+  assert.match((getNetworkActivity as any).description, /side-effect/i)
+  assert.doesNotMatch((getNetworkActivity as any).description, /nextAction/i)
+  assert.match((getNetworkActivity as any).description, /only if the result is still ambiguous/i)
 
   await assert.rejects(() => handleToolCall('unknown_tool'), /Unknown tool: unknown_tool/)
 

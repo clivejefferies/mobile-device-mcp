@@ -7,7 +7,6 @@ function run() {
     const result = classifyActionOutcome({ uiChanged: true })
     assert.strictEqual(result.outcome, 'success')
     assert.ok(result.reasoning.length > 0)
-    assert.strictEqual(result.nextAction, undefined)
   }
 
   // Step 1 — expectedElementVisible → success
@@ -15,7 +14,6 @@ function run() {
     const result = classifyActionOutcome({ uiChanged: false, expectedElementVisible: true })
     assert.strictEqual(result.outcome, 'success')
     assert.strictEqual(result.reasoning, 'expected element is visible')
-    assert.strictEqual(result.nextAction, undefined)
   }
 
   // Step 1 — both uiChanged and expectedElementVisible → success
@@ -24,24 +22,50 @@ function run() {
     assert.strictEqual(result.outcome, 'success')
   }
 
-  // Step 2 — UI did not change, networkRequests not yet provided → nextAction required
+  // No actionType supplied → unknown
   {
     const result = classifyActionOutcome({ uiChanged: false })
     assert.strictEqual(result.outcome, 'unknown')
-    assert.strictEqual(result.nextAction, 'call_get_network_activity')
+    assert.ok(result.reasoning.includes('actionType was not supplied'))
   }
 
-  // Step 2 — explicit null networkRequests → nextAction required
+  // Local-state action routes to state verification rather than forced network probing
   {
-    const result = classifyActionOutcome({ uiChanged: false, expectedElementVisible: null, networkRequests: null })
-    assert.strictEqual(result.outcome, 'unknown')
-    assert.strictEqual(result.nextAction, 'call_get_network_activity')
+    const result = classifyActionOutcome({ uiChanged: false, actionType: 'tap' })
+    assert.strictEqual(result.outcome, 'no_op')
+    assert.ok(result.reasoning.includes('local-state action'))
   }
 
-  // Step 3 — failure status → backend_failure
+  // Local-state action with network data still prefers local-state semantics
   {
     const result = classifyActionOutcome({
       uiChanged: false,
+      actionType: 'type_text',
+      networkRequests: []
+    })
+    assert.strictEqual(result.outcome, 'no_op')
+    assert.ok(result.reasoning.includes('local-state action'))
+  }
+
+  // Explicit side-effect action without networkRequests supplied → unknown
+  {
+    const result = classifyActionOutcome({ uiChanged: false, actionType: 'start_app' })
+    assert.strictEqual(result.outcome, 'unknown')
+    assert.ok(result.reasoning.includes('side-effect action'))
+  }
+
+  // Side-effect action with empty networkRequests → no_op
+  {
+    const result = classifyActionOutcome({ uiChanged: false, actionType: 'start_app', networkRequests: [] })
+    assert.strictEqual(result.outcome, 'no_op')
+    assert.ok(result.reasoning.includes('side-effect action'))
+  }
+
+  // Network failure → backend_failure
+  {
+    const result = classifyActionOutcome({
+      uiChanged: false,
+      actionType: 'start_app',
       networkRequests: [{ endpoint: '/login', status: 'failure' }]
     })
     assert.strictEqual(result.outcome, 'backend_failure')
@@ -49,10 +73,11 @@ function run() {
     assert.ok(result.reasoning.includes('failure'))
   }
 
-  // Step 3 — retryable status → backend_failure
+  // Retryable status → backend_failure
   {
     const result = classifyActionOutcome({
       uiChanged: false,
+      actionType: 'start_app',
       networkRequests: [
         { endpoint: '/api/submit', status: 'retryable' },
         { endpoint: '/api/other', status: 'success' }
@@ -62,25 +87,11 @@ function run() {
     assert.ok(result.reasoning.includes('/api/submit'))
   }
 
-  // Step 4 — empty network requests → no_op
-  {
-    const result = classifyActionOutcome({ uiChanged: false, networkRequests: [] })
-    assert.strictEqual(result.outcome, 'no_op')
-    assert.ok(result.reasoning.includes('no UI change'))
-    assert.ok(result.reasoning.includes('no network activity'))
-  }
-
-  // Step 4 — empty network requests with log errors → no_op with note
-  {
-    const result = classifyActionOutcome({ uiChanged: false, networkRequests: [], hasLogErrors: true })
-    assert.strictEqual(result.outcome, 'no_op')
-    assert.ok(result.reasoning.includes('log errors'))
-  }
-
-  // Step 5 — all requests succeeded but UI unchanged → ui_failure
+  // All requests succeeded and UI stayed unchanged → ui_failure
   {
     const result = classifyActionOutcome({
       uiChanged: false,
+      actionType: 'start_app',
       networkRequests: [
         { endpoint: '/api/save', status: 'success' },
         { endpoint: '/api/refresh', status: 'success' }
@@ -90,10 +101,18 @@ function run() {
     assert.ok(result.reasoning.includes('network requests succeeded'))
   }
 
+  // Empty network requests with log errors → no_op with note
+  {
+    const result = classifyActionOutcome({ uiChanged: false, actionType: 'start_app', networkRequests: [], hasLogErrors: true })
+    assert.strictEqual(result.outcome, 'no_op')
+    assert.ok(result.reasoning.includes('log errors'))
+  }
+
   // Step 1 takes priority over network signals — success even when failures present
   {
     const result = classifyActionOutcome({
       uiChanged: true,
+      actionType: 'start_app',
       networkRequests: [{ endpoint: '/api/log', status: 'failure' }]
     })
     assert.strictEqual(result.outcome, 'success')
