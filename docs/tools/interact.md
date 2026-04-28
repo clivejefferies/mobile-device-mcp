@@ -199,7 +199,14 @@ Output:
     "telemetry": { "matchedIndex": 3, "matchedInteractable": true }
   },
   "score": 1.0,
-  "confidence": 1.0
+  "confidence": 1.0,
+  "resolution": {
+    "confidence": 1.0,
+    "reason": "exact_text_match",
+    "fallback_available": false,
+    "matched_count": 1,
+    "alternates": []
+  }
 }
 ```
 
@@ -207,6 +214,7 @@ Notes:
 
 - Best used when no precise selector is available yet.
 - `tapCoordinates` are suitable for `tap` calls.
+- `resolution` explains why the element was selected and may include fallback alternates when the runtime had to promote a parent or nearby control.
 - Prefer `wait_for_ui` when you already know a deterministic selector and want a stable `elementId`.
 
 ---

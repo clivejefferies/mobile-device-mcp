@@ -2,6 +2,9 @@
 
 All notable changes to the **Mobile Debug MCP** project will be documented in this file.
 
+## [0.26.3]
+- updates the `find_element` tool to return detailed resolution metadata, including confidence scores,
+
 ## [0.26.2]
 - unified action execution and verification model 
 
