@@ -254,6 +254,79 @@ export interface ActionTargetResolved {
   semantic?: UIElementSemanticMetadata | null;
 }
 
+export interface ResolutionAlternate {
+  text: string | null;
+  resource_id: string | null;
+  accessibility_id: string | null;
+  class: string | null;
+  bounds: {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  } | null;
+  clickable: boolean;
+  enabled: boolean;
+  score: number;
+  reason: string;
+}
+
+export interface ResolutionSummary {
+  confidence: number;
+  reason: string;
+  fallback_available: boolean;
+  matched_count: number;
+  alternates: ResolutionAlternate[];
+}
+
+export interface FindElementElement {
+  text: string | null;
+  resourceId: string | null;
+  contentDesc: string | null;
+  class: string | null;
+  bounds: {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  } | null;
+  clickable: boolean;
+  enabled: boolean;
+  stable_id?: string | null;
+  role?: string | null;
+  test_tag?: string | null;
+  selector?: UIResolutionSelector | null;
+  semantic?: UIElementSemanticMetadata | null;
+  tapCoordinates: {
+    x: number;
+    y: number;
+  } | null;
+  telemetry: {
+    matchedIndex: number | null;
+    matchedInteractable: boolean;
+    sliderLike: boolean;
+  };
+  interactionHint?: {
+    kind: 'slider';
+    axis: 'horizontal' | 'vertical';
+    trackBounds: {
+      left: number;
+      top: number;
+      right: number;
+      bottom: number;
+    } | null;
+  };
+}
+
+export interface FindElementResponse {
+  found: boolean;
+  element?: FindElementElement | null;
+  score?: number;
+  confidence?: number;
+  resolution?: ResolutionSummary | null;
+  error?: string;
+}
+
 export interface ActionExecutionResult {
   action_id: string;
   timestamp: string;

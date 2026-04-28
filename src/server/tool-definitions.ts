@@ -596,7 +596,9 @@ Recommended Usage:
   },
   {
     name: 'find_element',
-    description: 'Find a UI element by semantic query (text, content-desc, resource-id, class). Returns best match.',
+    description: `Find a UI element by semantic query (text, content-desc, resource-id, class).
+
+Returns the best match plus resolution metadata when available, including confidence, selection reason, and fallback alternates.`,
     inputSchema: {
       type: 'object',
       properties: {

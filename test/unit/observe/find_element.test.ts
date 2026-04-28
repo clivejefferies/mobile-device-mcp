@@ -73,6 +73,9 @@ async function run() {
     process.stdout.write('res4 ' + JSON.stringify(res4, null, 2) + '\n');
     const pass4 = res4.found === true && res4.element && res4.element.clickable === true && res4.element.resourceId === 'btn_generate' && res4.element.tapCoordinates && typeof res4.element.tapCoordinates.x === 'number' && typeof res4.element.tapCoordinates.y === 'number' && typeof res4.confidence === 'number'
     assert.ok(pass4, 'Child text should resolve to a clickable parent ancestor')
+    assert.strictEqual(res4.resolution?.reason, 'clickable_parent_preferred')
+    assert.strictEqual(res4.resolution?.fallback_available, true)
+    assert.ok((res4.resolution?.alternates || []).length >= 1, 'Parent promotion should preserve alternates')
     process.stdout.write('Test 4: ' + (pass4 ? 'PASS' : 'FAIL') + '\n');
 
     // Test 5: duration label should resolve to the nearby slider control
@@ -111,6 +114,8 @@ async function run() {
     process.stdout.write('Test 6: ' + (pass6 ? 'PASS' : 'FAIL') + '\n');
     const pass6b = res6.element && res6.element.telemetry && res6.element.telemetry.sliderLike === true && res6.element.interactionHint && res6.element.interactionHint.kind === 'slider'
     assert.ok(pass6b, 'Duration lookup should include slider-specific telemetry')
+    assert.strictEqual(res6.resolution?.reason, 'slider_track_preferred')
+    assert.strictEqual(res6.resolution?.fallback_available, true)
     process.stdout.write('Test 6b: ' + (pass6b ? 'PASS' : 'FAIL') + '\n');
 
     // Test 7: prefer vertical track-like control over a closer text button

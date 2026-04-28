@@ -10,6 +10,7 @@ import { buildActionExecutionResult } from '../server/common.js'
 import type {
   ActionFailureCode,
   ActionTargetResolved,
+  FindElementResponse,
   ExpectElementVisibleResponse,
   ExpectStateResponse,
   ExpectScreenResponse,
@@ -66,6 +67,32 @@ interface UiChangeSignatureSet {
   hierarchy: string | null
   text: string | null
   state: string | null
+}
+
+interface RankedResolutionCandidate {
+  el: UiElement
+  idx: number
+  score: number
+  reason: string
+  interactable: boolean
+}
+
+interface FindElementResolutionSummary {
+  confidence: number
+  reason: string
+  fallback_available: boolean
+  matched_count: number
+  alternates: Array<{
+    text: string | null
+    resource_id: string | null
+    accessibility_id: string | null
+    class: string | null
+    bounds: { left: number; top: number; right: number; bottom: number } | null
+    clickable: boolean
+    enabled: boolean
+    score: number
+    reason: string
+  }>
 }
 
 
@@ -287,6 +314,23 @@ export class ToolsInteract {
       test_tag: element.test_tag ?? null,
       selector: element.selector ?? null,
       semantic: element.semantic ?? null
+    }
+  }
+
+  private static _summarizeResolutionCandidate(candidate: RankedResolutionCandidate): FindElementResolutionSummary['alternates'][number] {
+    const bounds = ToolsInteract._normalizeBounds(candidate.el.bounds)
+    return {
+      text: candidate.el.text ?? null,
+      resource_id: candidate.el.resourceId ?? candidate.el.resourceID ?? candidate.el.id ?? null,
+      accessibility_id: candidate.el.contentDescription ?? candidate.el.contentDesc ?? candidate.el.accessibilityLabel ?? candidate.el.label ?? null,
+      class: candidate.el.type ?? candidate.el.class ?? null,
+      bounds: bounds
+        ? { left: bounds[0], top: bounds[1], right: bounds[2], bottom: bounds[3] }
+        : null,
+      clickable: !!candidate.el.clickable,
+      enabled: !!candidate.el.enabled,
+      score: candidate.score,
+      reason: candidate.reason
     }
   }
 
@@ -546,7 +590,7 @@ export class ToolsInteract {
     return await interact.scrollToElement(selector, direction, maxScrolls, scrollAmount, resolved.id)
   }
 
-  static async findElementHandler({ query, exact = false, timeoutMs = 3000, platform, deviceId }: { query: string, exact?: boolean, timeoutMs?: number, platform?: 'android' | 'ios', deviceId?: string }) {
+  static async findElementHandler({ query, exact = false, timeoutMs = 3000, platform, deviceId }: { query: string, exact?: boolean, timeoutMs?: number, platform?: 'android' | 'ios', deviceId?: string }): Promise<FindElementResponse> {
     // Try to use observe layer to fetch the current UI tree and perform a fast semantic search
     const start = Date.now()
     const deadline = start + timeoutMs
@@ -555,16 +599,16 @@ export class ToolsInteract {
     const q = normalize(query)
     if (!q) return { found: false, error: 'Empty query' }
 
-    let best: UiElement | null = null
-    let bestScore = 0
+    let best: RankedResolutionCandidate | null = null
+    const ranked: RankedResolutionCandidate[] = []
     let lastTree: any = null
 
-    const scoreElement = (el: UiElement | null) => {
-      if (!el || !el.visible) return 0
+    const scoreElement = (el: UiElement | null, idx: number): RankedResolutionCandidate | null => {
+      if (!el || !el.visible) return null
       const bounds = el.bounds || [0,0,0,0]
-      if (!Array.isArray(bounds) || bounds.length < 4) return 0
+      if (!Array.isArray(bounds) || bounds.length < 4) return null
       const [l,t,r,b] = bounds
-      if (r <= l || b <= t) return 0
+      if (r <= l || b <= t) return null
       // Do not early-return on non-interactable elements — score them so we can locate their clickable ancestor later
       const interactable = !!(el.clickable || el.enabled || el.focusable)
 
@@ -574,19 +618,48 @@ export class ToolsInteract {
       const className = normalize(el.type ?? el.class ?? '')
 
       let score = 0
+      let reason = 'best_scoring_candidate'
       if (exact) {
-        if (text && text === q) score = 1.0
-        else if (content && content === q) score = 0.95
+        if (text && text === q) {
+          score = 1.0
+          reason = 'exact_text_match'
+        } else if (content && content === q) {
+          score = 0.95
+          reason = 'exact_content_desc_match'
+        } else if (resourceId && resourceId === q) {
+          score = 0.92
+          reason = 'exact_resource_id_match'
+        } else if (className && className === q) {
+          score = 0.3
+          reason = 'exact_class_match'
+        }
       } else {
-        if (text && text === q) score = 1.0
-        else if (content && content === q) score = 0.95
-        else if (text && text.includes(q)) score = 0.6
-        else if (content && content.includes(q)) score = 0.55
-        else if (resourceId && resourceId.includes(q)) score = 0.7
-        else if (className && className.includes(q)) score = 0.3
+        if (text && text === q) {
+          score = 1.0
+          reason = 'exact_text_match'
+        } else if (content && content === q) {
+          score = 0.95
+          reason = 'exact_content_desc_match'
+        } else if (resourceId && resourceId === q) {
+          score = 0.92
+          reason = 'exact_resource_id_match'
+        } else if (text && text.includes(q)) {
+          score = 0.6
+          reason = 'partial_text_match'
+        } else if (content && content.includes(q)) {
+          score = 0.55
+          reason = 'partial_content_desc_match'
+        } else if (resourceId && resourceId.includes(q)) {
+          score = 0.7
+          reason = 'partial_resource_id_match'
+        } else if (className && className.includes(q)) {
+          score = 0.3
+          reason = 'partial_class_match'
+        }
       }
       if (score > 0 && interactable) score += 0.05
-      return score
+      if (score <= 0) return null
+      return { el, idx, score, reason, interactable }
     }
 
     while (Date.now() <= deadline) {
@@ -598,17 +671,14 @@ export class ToolsInteract {
           for (let i = 0; i < elements.length; i++) {
             const el = elements[i]
             try {
-              const s = scoreElement(el)
-              const interactable = !!(el.clickable || el.enabled || (el as any).focusable)
-              if (s > bestScore) {
-                bestScore = s
-                best = el as UiElement
-                if (best) { best._index = i; best._interactable = interactable }
+              const candidate = scoreElement(el, i)
+              if (!candidate) continue
+              ranked.push(candidate)
+              if (!best || candidate.score > best.score) {
+                best = candidate
               }
-              if (bestScore >= 0.95) break
             } catch (e) { console.error('Error scoring element:', e) }
           }
-          if (bestScore >= 0.95) break
         }
       } catch (e) { console.error('Error fetching UI tree:', e) }
       if (Date.now() > deadline) break
@@ -617,33 +687,40 @@ export class ToolsInteract {
 
     if (!best) return { found: false, error: 'Element not found' }
 
+    ranked.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score
+      if (b.interactable !== a.interactable) return Number(b.interactable) - Number(a.interactable)
+      return a.idx - b.idx
+    })
+
     // If the best match is not interactable, try to resolve an actionable ancestor.
     try {
       const elements = (lastTree && Array.isArray(lastTree.elements)) ? (lastTree.elements as UiElement[]) : []
       const screen = lastTree?.resolution && typeof lastTree.resolution === 'object' ? lastTree.resolution as UiResolution : null
-      let chosen = best as any
-      const childBounds = Array.isArray(chosen?.bounds) ? chosen.bounds : null
+      let chosen = best as { el: UiElement, idx: number }
+      const childBounds = Array.isArray(chosen?.el?.bounds) ? chosen.el.bounds : null
 
       // Strategy 1: if parentId references an index, climb that chain
-      let resolvedAncestor: any = null
-      if (childBounds && (chosen.parentId !== undefined && chosen.parentId !== null)) {
+      let resolvedAncestor: { el: UiElement, idx: number } | null = null
+      if (childBounds && (chosen.el.parentId !== undefined && chosen.el.parentId !== null)) {
         let cur = chosen
         let safety = 0
-        while (cur && safety < 20 && !(cur.clickable || cur.focusable) && (cur.parentId !== undefined && cur.parentId !== null)) {
-          let pid = cur.parentId
+        while (cur && safety < 20 && !(cur.el.clickable || cur.el.focusable) && (cur.el.parentId !== undefined && cur.el.parentId !== null)) {
+          let pid = cur.el.parentId
           let idx: number | null = null
           if (typeof pid === 'number') idx = pid
           else if (typeof pid === 'string' && /^\d+$/.test(pid)) idx = Number(pid)
           // If parentId is not an index, try to find by matching resourceId or id field
           if (idx !== null && elements[idx]) {
-            cur = elements[idx]
-            if (cur && (cur.clickable || cur.enabled || cur.focusable)) { resolvedAncestor = cur; break }
+            cur = { el: elements[idx], idx }
+            if (cur && (cur.el.clickable || cur.el.enabled || cur.el.focusable)) { resolvedAncestor = cur; break }
           } else if (typeof pid === 'string') {
             // fallback: search elements for matching resourceId or id
-            const found = elements.find((el: UiElement)=> (el.resourceId === pid || el.id === pid))
+            const foundIndex = elements.findIndex((el: UiElement)=> (el.resourceId === pid || el.id === pid))
+            const found = foundIndex >= 0 ? elements[foundIndex] : null
             if (found) {
-              cur = found
-              if (cur && (cur.clickable || cur.enabled || cur.focusable)) { resolvedAncestor = cur; break }
+              cur = { el: found, idx: foundIndex }
+              if (cur && (cur.el.clickable || cur.el.enabled || cur.el.focusable)) { resolvedAncestor = cur; break }
               // otherwise continue climbing if this found element has its own parentId
             } else {
               break
@@ -659,62 +736,81 @@ export class ToolsInteract {
       if (!resolvedAncestor && childBounds) {
         const [cl,ct,cr,cb] = childBounds
         // find candidates that are clickable and contain the child bounds
-        const candidates = elements.filter((el: UiElement)=> el && (el.clickable || el.focusable) && Array.isArray(el.bounds) && el.bounds!.length>=4).map((el: UiElement)=>({el, bounds: el.bounds! as number[]}))
-        let bestCandidate: any = null
+        const candidates = elements
+          .map((el: UiElement, idx: number) => ({ el, idx }))
+          .filter(({ el }) => el && (el.clickable || el.focusable) && Array.isArray(el.bounds) && el.bounds!.length >= 4)
+        let bestCandidate: { el: UiElement, idx: number } | null = null
         let bestCandidateArea = Infinity
         for (const c of candidates) {
-          const [pl,pt,pr,pb] = c.bounds
+          const bounds = c.el.bounds as number[]
+          const [pl,pt,pr,pb] = bounds
           if (pl <= cl && pt <= ct && pr >= cr && pb >= cb) {
             const area = (pr-pl) * (pb-pt)
-            if (area < bestCandidateArea) { bestCandidateArea = area; bestCandidate = c.el }
+            if (area < bestCandidateArea) { bestCandidateArea = area; bestCandidate = c }
           }
         }
         if (bestCandidate) resolvedAncestor = bestCandidate
       }
 
       if (resolvedAncestor) {
-        best = resolvedAncestor
-        // small score bump to reflect actionability
-        bestScore = Math.min(1, bestScore + 0.02)
+        best = {
+          el: resolvedAncestor.el,
+          idx: resolvedAncestor.idx,
+          score: Math.min(1, best.score + 0.02),
+          reason: 'clickable_parent_preferred',
+          interactable: true
+        }
       }
 
-      if (best && !(best.clickable || best.focusable)) {
-        const nearbyActionable = ToolsInteract._resolveNearbyActionableControl(elements, { el: best, idx: best._index ?? elements.indexOf(best) }, screen)
+      if (best && !(best.el.clickable || best.el.focusable)) {
+        const nearbyActionable = ToolsInteract._resolveNearbyActionableControl(elements, { el: best.el, idx: best.idx }, screen)
         if (nearbyActionable) {
-          best = nearbyActionable.el
-          best._index = nearbyActionable.idx
-          best._interactable = true
-          best._sliderLike = nearbyActionable.sliderLike
+          best = {
+            el: nearbyActionable.el,
+            idx: nearbyActionable.idx,
+            score: Math.min(1, best.score + 0.02),
+            reason: nearbyActionable.sliderLike ? 'slider_track_preferred' : 'nearby_actionable_control',
+            interactable: true
+          }
         }
       }
     } catch (e) { console.error('Error resolving ancestor:', e) }
 
     if (!best) return { found: false, error: 'Element not found' }
 
-    const boundsObj = Array.isArray(best.bounds) ? { left: best.bounds[0], top: best.bounds[1], right: best.bounds[2], bottom: best.bounds[3] } : null
+    const boundsObj = Array.isArray(best.el.bounds) ? { left: best.el.bounds[0], top: best.el.bounds[1], right: best.el.bounds[2], bottom: best.el.bounds[3] } : null
     const tapCoordinates = boundsObj ? { x: Math.floor((boundsObj.left + boundsObj.right) / 2), y: Math.floor((boundsObj.top + boundsObj.bottom) / 2) } : null
+    const uniqueRanked = ranked.filter((candidate, index, array) => index === array.findIndex((other) => other.idx === candidate.idx && other.el === candidate.el))
+    const originalBest = uniqueRanked[0] ?? best
+    const alternateCandidates = uniqueRanked
+      .filter((candidate) => candidate.idx !== best.idx || candidate.el !== best.el)
+      .slice(0, 3)
+      .map((candidate) => ToolsInteract._summarizeResolutionCandidate(candidate))
+    if ((originalBest.idx !== best.idx || originalBest.el !== best.el) && !alternateCandidates.some((candidate) => candidate.text === originalBest.el.text && candidate.resource_id === (originalBest.el.resourceId ?? originalBest.el.resourceID ?? originalBest.el.id ?? null))) {
+      alternateCandidates.unshift(ToolsInteract._summarizeResolutionCandidate(originalBest))
+    }
 
     const outEl = {
-      text: best.text ?? null,
-      resourceId: best.resourceId ?? null,
-      contentDesc: best.contentDescription ?? best.contentDesc ?? null,
-      class: best.type ?? best.class ?? null,
+      text: best.el.text ?? null,
+      resourceId: best.el.resourceId ?? null,
+      contentDesc: best.el.contentDescription ?? best.el.contentDesc ?? null,
+      class: best.el.type ?? best.el.class ?? null,
       bounds: boundsObj,
-      clickable: !!best.clickable,
-      enabled: !!best.enabled,
-      stable_id: best.stable_id ?? null,
-      role: best.role ?? null,
-      test_tag: best.test_tag ?? null,
-      selector: best.selector ?? null,
-      semantic: best.semantic ?? null,
+      clickable: !!best.el.clickable,
+      enabled: !!best.el.enabled,
+      stable_id: best.el.stable_id ?? null,
+      role: best.el.role ?? null,
+      test_tag: best.el.test_tag ?? null,
+      selector: best.el.selector ?? null,
+      semantic: best.el.semantic ?? null,
       tapCoordinates,
       telemetry: {
-        matchedIndex: best?._index ?? null,
-        matchedInteractable: !!best?._interactable,
-        sliderLike: !!best?._sliderLike
+        matchedIndex: best.idx ?? null,
+        matchedInteractable: !!best.interactable,
+        sliderLike: best.reason === 'slider_track_preferred'
       }
     }
-    if (best?._sliderLike) {
+    if (best.reason === 'slider_track_preferred') {
       const isVertical = !!boundsObj && (boundsObj.bottom - boundsObj.top) > (boundsObj.right - boundsObj.left)
       const interactionHint = {
         kind: 'slider',
@@ -723,8 +819,15 @@ export class ToolsInteract {
       }
       ;(outEl as any).interactionHint = interactionHint
     }
-    const scoreVal = Math.min(1, Number(bestScore.toFixed(3)))
-    return { found: true, element: outEl, score: scoreVal, confidence: scoreVal }
+    const scoreVal = Math.min(1, Number(best.score.toFixed(3)))
+    const resolution: FindElementResolutionSummary = {
+      confidence: scoreVal,
+      reason: best.reason,
+      fallback_available: alternateCandidates.length > 0,
+      matched_count: uniqueRanked.length,
+      alternates: alternateCandidates
+    }
+    return { found: true, element: outEl, score: scoreVal, confidence: scoreVal, resolution }
   }
 
   static async waitForUIHandler({ selector, condition = 'exists', timeout_ms = 60000, poll_interval_ms = 300, match, retry = { max_attempts: 1, backoff_ms: 0 }, platform, deviceId }: { selector?: { text?: string, resource_id?: string, accessibility_id?: string, contains?: boolean }, condition?: 'exists'|'not_exists'|'visible'|'clickable', timeout_ms?: number, poll_interval_ms?: number, match?: { index?: number }, retry?: { max_attempts?: number, backoff_ms?: number }, platform?: 'android'|'ios', deviceId?: string }) {
