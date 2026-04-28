@@ -40,12 +40,10 @@ Higher task success with fewer retries.
 
 # Roadmap Status Overview
 
-## Completed Foundations
+## Completed Capabilities
 
-| Capability | Status | Notes |
-|-----------|--------|-------|
-| Stronger State Verification | Complete | Foundational verification layer shipped |
-| Richer Element Identity | Complete | Identity and selector confidence foundations shipped |
+- Stronger State Verification — Complete (Foundational verification layer shipped)
+- Richer Element Identity — Complete (Identity and selector confidence foundations shipped)
 
 ## Current Focus
 
