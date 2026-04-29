@@ -339,7 +339,7 @@ export class ToolsInteract {
     if (!el) return false
     const type = ToolsInteract._normalize(el.type ?? el.class ?? '')
     const role = ToolsInteract._normalize(el.role ?? '')
-    return !!el.state?.value_range || /slider|seekbar|stepper|adjustable|range|progress/.test(type) || /slider|seekbar|stepper|adjustable|range/.test(role)
+    return !!el.state?.value_range || /slider|seekbar|stepper|adjustable|range/.test(type) || /slider|seekbar|stepper|adjustable|range/.test(role)
   }
 
   private static _readNumericControlValue(el: UiElement | null, property: string): number | null {
@@ -387,6 +387,7 @@ export class ToolsInteract {
     const stepRatio = 1 / range
     const centerBias = stepRatio / 2
     const direction = currentValue === null ? 0 : Math.sign(targetValue - currentValue)
+    const controlLengthPx = axis === 'vertical' ? Math.max(1, bounds[3] - bounds[1]) : Math.max(1, bounds[2] - bounds[0])
     const edgeWindow = Math.max(3, Math.floor(range * 0.1))
     const isNearLowEdge = targetValue - min <= edgeWindow
     const isNearHighEdge = max - targetValue <= edgeWindow
@@ -395,7 +396,8 @@ export class ToolsInteract {
       : direction < 0
         ? stepRatio * 0.65
         : 0
-    const endpointMargin = Math.max(stepRatio * 0.5, 0.03)
+    const pixelBasedMargin = Math.min(0.03, Math.max(0.005, 2 / controlLengthPx))
+    const endpointMargin = Math.max(stepRatio * 0.5, pixelBasedMargin)
     const edgeBias = isNearLowEdge
       ? endpointMargin
       : isNearHighEdge
@@ -900,16 +902,34 @@ export class ToolsInteract {
     let resolvedTarget: ActionTargetResolved | null = null
     let currentDevice: any = undefined
     let attemptCount = 0
+    let cachedResolvedMatch: { el: UiElement, idx: number } | null = null
 
     for (let attempt = 0; attempt < attemptsLimit; attempt++) {
-      const resolved = await resolveCurrentMatch()
+      const resolved: {
+        tree: any
+        device: any
+        match: { el: UiElement, idx: number } | null
+        resolvedTarget: ActionTargetResolved | null
+      } | null = cachedResolvedMatch
+        ? {
+          tree: null,
+          device: currentDevice,
+          match: cachedResolvedMatch,
+          resolvedTarget: ToolsInteract._resolvedTargetFromElement(
+            ToolsInteract._computeElementId(resolvedPlatform, resolvedDeviceId, cachedResolvedMatch.el, cachedResolvedMatch.idx),
+            cachedResolvedMatch.el,
+            cachedResolvedMatch.idx
+          )
+        }
+        : await resolveCurrentMatch()
       if (!resolved || !resolved.match || !resolved.resolvedTarget) {
         return buildFailure('STALE_REFERENCE', 'adjustable control could not be resolved', resolvedTarget, currentDevice, lastObservedState, attemptCount, lastAdjustmentMode, true)
       }
 
       currentDevice = resolved.device
       resolvedTarget = resolved.resolvedTarget
-      const currentEl = resolved.match.el
+      const currentEl: UiElement = resolved.match.el
+      cachedResolvedMatch = resolved.match
       const bounds = ToolsInteract._normalizeBounds(currentEl.bounds)
       const valueRange = currentEl.state?.value_range ?? null
       const currentValue = ToolsInteract._readNumericControlValue(currentEl, property)
@@ -1114,6 +1134,20 @@ export class ToolsInteract {
           attempts: attemptCount,
           adjustment_mode: lastAdjustmentMode
         }
+      }
+
+      cachedResolvedMatch = {
+        el: {
+          ...currentEl,
+          state: {
+            ...(currentEl.state ?? null),
+            ...(observedState ? {
+              [observedState.property]: observedState.value,
+              raw_value: observedState.raw_value ?? observedState.value
+            } : {})
+          }
+        },
+        idx: resolved.match.idx
       }
     }
 

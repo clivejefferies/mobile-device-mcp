@@ -52,10 +52,62 @@ Higher task success with fewer retries.
 
 ## Upcoming Work
 
+- Environment Auto-Configuration and Toolchain Discovery
 - Adjustable Control Support
 - Better Compose / Custom Control Semantics
 - Signal-Oriented Diagnostic Filtering
 - Long Press Gesture
+# Stronger State Verification
+# Richer Element Identity
+# Wait and Synchronization Reliability
+# Environment Auto-Configuration and Toolchain Discovery
+
+## Rationale
+Reduce onboarding friction and improve developer experience by minimizing manual setup dependencies.
+
+**Status:** Planned
+
+Addresses friction around:
+- manual idb installation
+- manual adb path configuration
+- manual xcrun path configuration
+- environment drift across machines
+- setup failures blocking first use
+
+## Scope
+- Automatic discovery of adb
+- Automatic discovery of xcrun
+- idb detection and guided bootstrap support
+- Startup toolchain validation
+- Environment health diagnostics / doctor-style checks
+- Minimal-manual-configuration defaults
+
+## Expected Impact
+High.
+
+## Exit Criteria
+- adb and xcrun auto-discovery implemented
+- Missing dependencies surfaced with guided remediation
+- Startup environment validation available
+- Manual path configuration eliminated or minimized for standard setups
+- First-run setup validated on representative developer environments
+
+## Success Metrics
+- Reduced setup friction during onboarding
+- Lower environment configuration failures
+- Faster time-to-first-successful-session
+- Reduced support/debugging caused by local setup issues
+
+## Dependencies
+Depends on:
+- Stronger State Verification
+- Richer Element Identity
+
+Strengthens:
+- Actionability Resolution
+- Broader user adoption readiness
+
+---
 
 ## Later Horizon
 
@@ -516,6 +568,7 @@ Foundation
 - Richer Element Identity
 
 Synchronization & Actionability
+- Environment Auto-Configuration and Toolchain Discovery
 - Wait and Synchronization Reliability
 - Actionability Resolution
 
@@ -536,9 +589,10 @@ Deep Observability
 - Richer Element Identity
 - Wait and Synchronization Reliability
 - Actionability Resolution
+- Environment Auto-Configuration and Toolchain Discovery
 
 Focus:
-Make core loop more reliable.
+Make core loop reliable and reduce onboarding friction.
 
 ---
 
@@ -575,16 +629,17 @@ Roadmap Ordering:
 1. Stronger State Verification
 2. Richer Element Identity
 3. Wait and Synchronization Reliability
-4. Actionability Resolution
-5. Adjustable Control Support
-6. Better Compose / Custom Control Semantics
-7. Signal-Oriented Diagnostic Filtering
-8. Long Press Gesture
-9. Pinch to Zoom
-10. Action Trace Correlation
+4. Environment Auto-Configuration and Toolchain Discovery
+5. Actionability Resolution
+6. Adjustable Control Support
+7. Better Compose / Custom Control Semantics
+8. Signal-Oriented Diagnostic Filtering
+9. Long Press Gesture
+10. Pinch to Zoom
+11. Action Trace Correlation
 
 Rationale:
-- Early roadmap items harden state, targeting, synchronization, action execution.
+- Early roadmap items harden state, targeting, synchronization, environment readiness, and action execution.
 - Mid roadmap items improve control precision and signal observability.
 - Later interaction-focused items expand interaction coverage.
 - Final observability work deepens debugging observability.

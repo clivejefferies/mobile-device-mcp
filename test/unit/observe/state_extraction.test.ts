@@ -31,6 +31,20 @@ async function run() {
   })
   assert.deepStrictEqual(androidElements[0].semantic, { is_clickable: true, is_container: false })
 
+  const androidProgressElements: any[] = []
+  traverseNode({
+    '@_class': 'android.widget.ProgressBar',
+    '@_text': 'Loading progress',
+    '@_content-desc': 'Loading progress',
+    '@_enabled': 'true',
+    '@_progress': '40',
+    '@_max': '100',
+    '@_bounds': '[0,0][200,40]'
+  }, androidProgressElements)
+
+  assert.notStrictEqual(androidProgressElements[0]?.role, 'slider')
+  assert.notStrictEqual(androidProgressElements[0]?.state?.value, 40)
+
   const androidFallbackElements: any[] = []
   traverseNode({
     '@_class': 'android.widget.Button',
@@ -69,6 +83,16 @@ async function run() {
     confidence: { score: 1, reason: 'accessibility_identifier' }
   })
   assert.deepStrictEqual(iosElements[0].semantic, { is_clickable: true, is_container: false })
+
+  const iosProgressElements: any[] = []
+  traverseIDBNode({
+    AXElementType: 'ProgressIndicator',
+    AXLabel: 'Loading progress',
+    AXValue: '0.4',
+    AXTraits: ['UIAccessibilityTraitUpdatesFrequently']
+  }, iosProgressElements)
+
+  assert.notStrictEqual(iosProgressElements[0]?.role, 'slider')
 
   const iosFallbackElements: any[] = []
   traverseIDBNode({

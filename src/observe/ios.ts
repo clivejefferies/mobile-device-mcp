@@ -121,7 +121,7 @@ function buildIOSSemantic(type: string, traits: string[]): UIElementSemanticMeta
 }
 
 function isIOSAdjustable(node: IDBElement, type: string, traits: string[]): boolean {
-  return /slider|adjustable|stepper|progress/i.test(type) || traits.some((trait) => /adjustable|slider|progress/i.test(trait))
+  return /slider|adjustable|stepper/i.test(type) || traits.some((trait) => /adjustable|slider/i.test(trait))
 }
 
 function extractIOSState(node: IDBElement, type: string, label: string | null, value: string | null, traits: string[]): UIElementState | null {

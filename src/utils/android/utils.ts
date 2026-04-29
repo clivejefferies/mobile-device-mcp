@@ -341,7 +341,7 @@ function normalizeClassName(value: unknown): string {
 }
 
 function inferAndroidRole(className: string): string | null {
-  if (/seekbar|slider|progress/.test(className)) return 'slider'
+  if (/seekbar|slider/.test(className)) return 'slider'
   if (/switch|toggle/.test(className)) return 'switch'
   if (/checkbox/.test(className)) return 'checkbox'
   if (/radiobutton|radio/.test(className)) return 'radio'
@@ -384,7 +384,7 @@ function buildAndroidSemantic(clickable: boolean, className: string): UIElementS
 
 function isSliderLikeAndroid(node: any): boolean {
   const className = String(node['@_class'] || '').toLowerCase()
-  return /seekbar|slider|range|progress/i.test(className)
+  return /seekbar|slider|range/i.test(className)
 }
 
 function extractAndroidState(node: any): UIElementState | null {
