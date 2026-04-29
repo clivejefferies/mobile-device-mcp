@@ -127,12 +127,13 @@ async function run() {
   traverseIDBNode({
     AXElementType: 'Stepper',
     AXLabel: 'Quantity',
-    AXValue: '3',
+    AXValue: '1',
     AXTraits: ['UIAccessibilityTraitAdjustable']
   }, iosStepperElements)
   assert.strictEqual(iosStepperElements[0].role, 'stepper')
   assert.strictEqual(iosStepperElements[0].semantic?.semantic_role, 'stepper')
   assert.deepStrictEqual(iosStepperElements[0].semantic?.supported_actions, ['increment', 'decrement'])
+  assert.strictEqual(iosStepperElements[0].semantic?.state_shape, 'discrete')
 
   const iosSegmentedElements: any[] = []
   traverseIDBNode({
@@ -143,6 +144,18 @@ async function run() {
   assert.strictEqual(iosSegmentedElements[0].role, 'segmented_control')
   assert.strictEqual(iosSegmentedElements[0].semantic?.semantic_role, 'segmented_control')
   assert.deepStrictEqual(iosSegmentedElements[0].semantic?.supported_actions, ['tap'])
+
+  const iosCustomAdjustableElements: any[] = []
+  traverseIDBNode({
+    AXElementType: 'CustomControl',
+    AXLabel: 'Intensity',
+    AXValue: '0.25',
+    AXTraits: ['UIAccessibilityTraitAdjustable']
+  }, iosCustomAdjustableElements)
+  assert.strictEqual(iosCustomAdjustableElements[0].semantic?.semantic_role, 'custom_adjustable')
+  assert.strictEqual(iosCustomAdjustableElements[0].semantic?.adjustable, true)
+  assert.deepStrictEqual(iosCustomAdjustableElements[0].semantic?.supported_actions, ['adjust'])
+  assert.strictEqual(iosCustomAdjustableElements[0].semantic?.state_shape, 'continuous')
 
   const iosFallbackElements: any[] = []
   traverseIDBNode({

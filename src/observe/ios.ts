@@ -140,11 +140,16 @@ function buildIOSSemantic(type: string, traits: string[], role: string | null, v
     semantic.semantic_role = 'segmented_control'
     semantic.supported_actions = ['tap']
     semantic.state_shape = 'discrete'
+  } else if (traits.some((trait) => /adjustable|slider/i.test(trait)) || /adjustable|slider/.test(type)) {
+    semantic.semantic_role = 'custom_adjustable'
+    semantic.adjustable = true
+    semantic.supported_actions = ['adjust']
+    semantic.state_shape = 'continuous'
   } else if (semantic.is_clickable) {
     semantic.supported_actions = ['tap']
   }
 
-  if (semantic.adjustable && value !== null) {
+  if (semantic.state_shape === undefined && semantic.adjustable && value !== null) {
     const numericValue = parseIOSNumber(value)
     if (numericValue !== null && numericValue >= 0 && numericValue <= 1) {
       semantic.state_shape = 'continuous'

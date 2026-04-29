@@ -1252,17 +1252,28 @@ export class ToolsInteract {
           reason = 'partial_class_match'
         }
       }
-      if (!score && semanticRole && semanticRole.includes(q)) {
-        score = 0.5
-        reason = 'semantic_role_match'
-      }
-      if (semanticActions.some((action) => action.includes(q))) {
-        score = Math.max(score, score > 0 ? 0.65 : 0.6)
-        reason = 'semantic_action_match'
-      }
-      if (score === 0 && el.semantic?.adjustable && /slider|stepper|dropdown|segment|control|adjust/.test(q)) {
-        score = 0.45
-        reason = 'semantic_control_match'
+      if (!exact) {
+        if (!score && semanticRole && semanticRole.includes(q)) {
+          score = 0.5
+          reason = 'semantic_role_match'
+        }
+        if (semanticActions.some((action) => action.includes(q))) {
+          score = Math.max(score, score > 0 ? 0.65 : 0.6)
+          reason = 'semantic_action_match'
+        }
+        if (score === 0 && el.semantic?.adjustable && /slider|stepper|dropdown|segment|control|adjust/.test(q)) {
+          score = 0.45
+          reason = 'semantic_control_match'
+        }
+      } else {
+        if (!score && semanticRole && semanticRole === q) {
+          score = 0.5
+          reason = 'semantic_role_match'
+        }
+        if (semanticActions.some((action) => action === q)) {
+          score = Math.max(score, score > 0 ? 0.65 : 0.6)
+          reason = 'semantic_action_match'
+        }
       }
       if (score > 0 && interactable) score += 0.05
       if (score <= 0) return null
